@@ -1,0 +1,143 @@
+<Application x:Class="MunerisIpPrinter.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:MunerisIpPrinter"
+             StartupUri="UI/MainWindow.xaml">
+    <Application.Resources>
+        <Style x:Key="CopyButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#16294A"/>
+            <Setter Property="Foreground" Value="#E0E5EE"/>
+            <Setter Property="BorderBrush" Value="#3A6FB8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="16,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1F3A66"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#0F2138"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkTabControlStyle" TargetType="TabControl">
+            <Setter Property="Background" Value="#040D1A"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <DockPanel Background="{TemplateBinding Background}">
+                            <TabPanel DockPanel.Dock="Top" IsItemsHost="True"
+                                      HorizontalAlignment="Center"/>
+                            <Grid>
+                                <ContentPresenter ContentSource="SelectedContent"/>
+                                <!-- main page (logo + gear), shown when no tab is selected;
+                                     the actual content is injected via the TabControl's Tag -->
+                                <ContentControl x:Name="NoSelection"
+                                                Content="{TemplateBinding Tag}"
+                                                Visibility="Collapsed"/>
+                            </Grid>
+                        </DockPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="SelectedIndex" Value="-1">
+                                <Setter TargetName="NoSelection" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkTabItemStyle" TargetType="TabItem">
+            <Setter Property="Background" Value="#0A1828"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Grid>
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    BorderBrush="#152639" BorderThickness="0,0,1,1"
+                                    Padding="18,9">
+                                <ContentPresenter ContentSource="Header"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <!-- new-receipt indicator: red strip along the bottom (toggled via TabItem.Tag) -->
+                            <Border x:Name="NewMark" Height="3" Background="#E5484D"
+                                    VerticalAlignment="Bottom" Visibility="Collapsed"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#0F2138"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#16294A"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#3A6FB8"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="0,2,1,0"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="New">
+                                <Setter TargetName="NewMark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="#0A1828"/>
+            <Setter Property="Foreground" Value="#E0E5EE"/>
+            <Setter Property="CaretBrush" Value="#E0E5EE"/>
+            <Setter Property="BorderBrush" Value="#244065"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="ReceiptChipStyle" TargetType="ListBoxItem">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Margin" Value="3,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="#16294A"
+                                BorderBrush="#3A6FB8" BorderThickness="1"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#1F3A66"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3A6FB8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>

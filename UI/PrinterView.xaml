@@ -1,0 +1,80 @@
+<UserControl x:Class="MunerisIpPrinter.UI.PrinterView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Background="#040D1A">
+        <ScrollViewer Background="#040D1A"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Grid>
+                <Image x:Name="EmptyHint"
+                       Source="/assets/muneris-bg.png" Stretch="Uniform"
+                       MaxWidth="400"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Margin="20"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <Border x:Name="PaperBorder" Margin="40,40,40,72"
+                        HorizontalAlignment="Center" VerticalAlignment="Top"
+                        Background="White" CornerRadius="1"
+                        Padding="22,28"
+                        Visibility="Collapsed">
+                    <Border.Effect>
+                        <DropShadowEffect ShadowDepth="3" BlurRadius="22"
+                                          Opacity="0.7" Color="Black"/>
+                    </Border.Effect>
+                    <StackPanel>
+                        <Image x:Name="LogoView" Visibility="Collapsed"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center" Margin="0,0,0,12"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBox x:Name="TextView" FontFamily="Consolas" FontSize="11"
+                                 TextOptions.TextFormattingMode="Display"
+                                 IsReadOnly="True" BorderThickness="0"
+                                 Background="Transparent" Foreground="#1a1a1a"
+                                 TextWrapping="NoWrap" Padding="0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- receipt chips — hovering, bottom-centered; just the # -->
+        <ListBox x:Name="JobList" Background="Transparent" BorderThickness="0"
+                 HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                 Margin="0,0,0,16"
+                 ItemContainerStyle="{StaticResource ReceiptChipStyle}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                 SelectionChanged="JobList_SelectionChanged">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal"/>
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding ShortHeader}" Foreground="#E0E5EE"
+                               FontFamily="Segoe UI" FontWeight="SemiBold"
+                               FontSize="11"/>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Button x:Name="CopyButton" Content="&#xE8C8;"
+                Style="{StaticResource CopyButtonStyle}"
+                FontFamily="Segoe MDL2 Assets" FontSize="16"
+                Padding="9,7"
+                ToolTip="Copy receipt to clipboard"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,16,16"
+                Visibility="Collapsed"
+                Click="CopyButton_Click"/>
+
+        <Button x:Name="SettingsButton" Content="&#xE713;"
+                Style="{StaticResource CopyButtonStyle}"
+                FontFamily="Segoe MDL2 Assets" FontSize="15"
+                Padding="9,7"
+                ToolTip="Settings"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,16,16"
+                Click="SettingsButton_Click"/>
+    </Grid>
+</UserControl>
