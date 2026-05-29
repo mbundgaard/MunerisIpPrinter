@@ -57,24 +57,5 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
-
-        <Button x:Name="CopyButton" Content="&#xE8C8;"
-                Style="{StaticResource CopyButtonStyle}"
-                FontFamily="Segoe MDL2 Assets" FontSize="16"
-                Padding="9,7"
-                ToolTip="Copy receipt to clipboard"
-                HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                Margin="0,0,16,16"
-                Visibility="Collapsed"
-                Click="CopyButton_Click"/>
-
-        <Button x:Name="SettingsButton" Content="&#xE713;"
-                Style="{StaticResource CopyButtonStyle}"
-                FontFamily="Segoe MDL2 Assets" FontSize="15"
-                Padding="9,7"
-                ToolTip="Settings"
-                HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                Margin="0,0,16,16"
-                Click="SettingsButton_Click"/>
     </Grid>
 </UserControl>

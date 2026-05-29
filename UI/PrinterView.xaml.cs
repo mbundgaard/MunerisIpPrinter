@@ -12,16 +12,11 @@ using MunerisIpPrinter.Services;
 namespace MunerisIpPrinter.UI;
 
 /// <summary>
-/// One printer's tab: job list + receipt paper + logo + copy/settings buttons.
-/// It owns no listener — MainWindow holds the single PrintListener and feeds jobs in via <see cref="AddJob"/>.
+/// One printer's detail pane: receipt paper + chip strip. Owns no listener and no toolbar buttons —
+/// MainWindow drives <see cref="AddJob"/>, copy/reset, and which view is visible.
 /// </summary>
 public partial class PrinterView : UserControl
 {
-    // Segoe MDL2 Assets glyphs
-    private const string IconCopy = ""; // Copy
-    private const string IconDone = ""; // CheckMark
-    private const string IconFail = ""; // Cancel
-
     private readonly SlotStore _slotStore;
     private readonly int _slotKey;
     private readonly int _historyCount;
@@ -30,8 +25,8 @@ public partial class PrinterView : UserControl
 
     public PrinterConfig Config { get; }
 
-    /// <summary>Raised when the user clicks the gear button (shown only on the empty page).</summary>
-    public event EventHandler? SettingsRequested;
+    /// <summary>Raised whenever the displayed receipt or job list changes — MainWindow uses it to refresh toolbar state.</summary>
+    public event EventHandler? StateChanged;
 
     public PrinterView(PrinterConfig config, SlotStore slotStore, int historyCount)
     {
@@ -51,12 +46,18 @@ public partial class PrinterView : UserControl
             {
                 foreach (var job in saved) _jobs.Add(job); // already most-recent-first
                 _sequence = saved.Max(j => j.Sequence);
-                // nothing selected — the app opens on the empty page; the user picks a receipt
+                // nothing selected — the pane opens empty until the user picks a receipt
             }
         }
     }
 
-    /// <summary>Called by MainWindow when a receipt arrives for this tab's address.</summary>
+    /// <summary>True when a receipt is currently rendered on the paper (Copy is meaningful).</summary>
+    public bool HasReceiptShown => PaperBorder.Visibility == Visibility.Visible;
+
+    /// <summary>True when this printer has any receipts in its chip list.</summary>
+    public bool HasJobs => _jobs.Count > 0;
+
+    /// <summary>Called by MainWindow when a receipt arrives for this printer's address.</summary>
     public void AddJob(PrintJob job)
     {
         job.Sequence = ++_sequence;
@@ -71,7 +72,23 @@ public partial class PrinterView : UserControl
                 _jobs.RemoveAt(_jobs.Count - 1);
             PrintHistory.Save(_slotStore, _slotKey, _jobs.ToList());
         }
+
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>Wipes this printer's chip list and persisted history. Used by the global Reset.</summary>
+    public void ClearAllJobs()
+    {
+        JobList.SelectedIndex = -1;
+        _jobs.Clear();
+        _sequence = 0;
+        if (_historyCount > 0)
+            PrintHistory.Save(_slotStore, _slotKey, Array.Empty<PrintJob>());
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Deselects the current receipt and shows the empty pane again.</summary>
+    public void ClearSelection() => JobList.SelectedIndex = -1;
 
     private void SizePaperTo40Cols()
     {
@@ -88,22 +105,19 @@ public partial class PrinterView : UserControl
 
     private void JobList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // Stop here — if this bubbles up to the parent TabControl it corrupts the tab selection.
         e.Handled = true;
 
         if (JobList.SelectedItem is not PrintJob job)
         {
             PaperBorder.Visibility = Visibility.Collapsed;
             EmptyHint.Visibility = Visibility.Visible;
-            CopyButton.Visibility = Visibility.Collapsed;
-            SettingsButton.Visibility = Visibility.Visible;
+            StateChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
 
         PaperBorder.Visibility = Visibility.Visible;
         EmptyHint.Visibility = Visibility.Collapsed;
-        CopyButton.Visibility = Visibility.Visible;
-        SettingsButton.Visibility = Visibility.Collapsed;
+        StateChanged?.Invoke(this, EventArgs.Empty);
 
         TextView.Text = EscPosTextExtractor.Extract(job.Data);
 
@@ -120,18 +134,10 @@ public partial class PrinterView : UserControl
         }
     }
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
-        => SettingsRequested?.Invoke(this, EventArgs.Empty);
-
-    /// <summary>Deselects the current receipt. The chip list stays — re-selecting the tab still shows recent prints.</summary>
-    public void ClearSelection() => JobList.SelectedIndex = -1;
-
-    private void CopyButton_Click(object sender, RoutedEventArgs e) => CopySelectedReceipt();
-
-    /// <summary>Copies the currently-shown receipt to the clipboard as an image. No-op on the empty page.</summary>
+    /// <summary>Copies the currently-shown receipt to the clipboard as an image. No-op if no receipt is shown.</summary>
     public async void CopySelectedReceipt()
     {
-        if (PaperBorder.Visibility != Visibility.Visible) return;
+        if (!HasReceiptShown) return;
 
         int w = (int)Math.Ceiling(PaperBorder.ActualWidth);
         int h = (int)Math.Ceiling(PaperBorder.ActualHeight);
@@ -153,15 +159,10 @@ public partial class PrinterView : UserControl
 
         PaperBorder.Effect = savedEffect;
 
-        bool ok = false;
-        for (int attempt = 0; attempt < 3 && !ok; attempt++)
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            try { Clipboard.SetImage(rtb); ok = true; }
+            try { Clipboard.SetImage(rtb); return; }
             catch { await Task.Delay(60); }
         }
-
-        CopyButton.Content = ok ? IconDone : IconFail;
-        await Task.Delay(1400);
-        CopyButton.Content = IconCopy;
     }
 }

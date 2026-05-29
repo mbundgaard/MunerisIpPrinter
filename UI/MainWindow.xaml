@@ -3,7 +3,66 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Muneris IP Printer"
         Icon="/assets/icon.png"
-        Height="800" Width="600"
+        Height="800" Width="900"
+        MinHeight="500" MinWidth="500"
         Background="#040D1A">
-    <Grid x:Name="RootContainer"/>
+    <DockPanel>
+        <!-- top toolbar -->
+        <Border DockPanel.Dock="Top" Background="#0A1828"
+                BorderBrush="#152639" BorderThickness="0,0,0,1"
+                Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="/assets/icon.png" Width="20" Height="20"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           Margin="0,0,8,0"/>
+                    <TextBlock Text="Muneris IP Printer"
+                               Foreground="#C8D0DC"
+                               FontFamily="Segoe UI" FontWeight="SemiBold" FontSize="13"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ResetButton" Content="&#xE74D;"
+                            Style="{StaticResource CopyButtonStyle}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="14"
+                            Padding="9,5"
+                            ToolTip="Clear all receipts from all printers"
+                            Click="ResetButton_Click"/>
+                    <Button x:Name="CopyButton" Content="&#xE8C8;"
+                            Style="{StaticResource CopyButtonStyle}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="14"
+                            Padding="9,5" Margin="8,0,0,0"
+                            ToolTip="Copy the active receipt to clipboard"
+                            IsEnabled="False"
+                            Click="CopyButton_Click"/>
+                    <Button x:Name="SettingsButton" Content="&#xE713;"
+                            Style="{StaticResource CopyButtonStyle}"
+                            FontFamily="Segoe MDL2 Assets" FontSize="14"
+                            Padding="9,5" Margin="8,0,0,0"
+                            ToolTip="Settings"
+                            Click="SettingsButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- left sidebar: printer list -->
+        <Border x:Name="SidebarBorder" DockPanel.Dock="Left"
+                Width="200"
+                Background="#08111F"
+                BorderBrush="#152639" BorderThickness="0,0,1,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="Sidebar" Padding="6"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- detail: every PrinterView is parented here, only the active one is visible -->
+        <Grid x:Name="DetailHost" Background="#040D1A"/>
+    </DockPanel>
 </Window>

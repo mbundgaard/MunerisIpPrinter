@@ -39,68 +39,6 @@
             </Setter>
         </Style>
 
-        <Style x:Key="DarkTabControlStyle" TargetType="TabControl">
-            <Setter Property="Background" Value="#040D1A"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabControl">
-                        <DockPanel Background="{TemplateBinding Background}">
-                            <TabPanel DockPanel.Dock="Top" IsItemsHost="True"
-                                      HorizontalAlignment="Center"/>
-                            <Grid>
-                                <ContentPresenter ContentSource="SelectedContent"/>
-                                <!-- main page (logo + gear), shown when no tab is selected;
-                                     the actual content is injected via the TabControl's Tag -->
-                                <ContentControl x:Name="NoSelection"
-                                                Content="{TemplateBinding Tag}"
-                                                Visibility="Collapsed"/>
-                            </Grid>
-                        </DockPanel>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="SelectedIndex" Value="-1">
-                                <Setter TargetName="NoSelection" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DarkTabItemStyle" TargetType="TabItem">
-            <Setter Property="Background" Value="#0A1828"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Grid>
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                    BorderBrush="#152639" BorderThickness="0,0,1,1"
-                                    Padding="18,9">
-                                <ContentPresenter ContentSource="Header"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
-                            </Border>
-                            <!-- new-receipt indicator: red strip along the bottom (toggled via TabItem.Tag) -->
-                            <Border x:Name="NewMark" Height="3" Background="#E5484D"
-                                    VerticalAlignment="Bottom" Visibility="Collapsed"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#0F2138"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#16294A"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#3A6FB8"/>
-                                <Setter TargetName="Bd" Property="BorderThickness" Value="0,2,1,0"/>
-                            </Trigger>
-                            <Trigger Property="Tag" Value="New">
-                                <Setter TargetName="NewMark" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <Style x:Key="DarkTextBoxStyle" TargetType="TextBox">
             <Setter Property="Background" Value="#0A1828"/>
             <Setter Property="Foreground" Value="#E0E5EE"/>
