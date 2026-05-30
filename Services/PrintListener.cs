@@ -66,11 +66,15 @@ public sealed class PrintListener
         {
             try
             {
-                var client = await _listener!.AcceptTcpClientAsync(ct);
+                // .NET Framework 4.6.2 has no AcceptTcpClientAsync(CancellationToken) overload —
+                // Stop() closes the listener which causes the pending accept to throw, which is
+                // how we exit the loop.
+                var client = await _listener!.AcceptTcpClientAsync();
                 _ = HandleClient(client, ct);
             }
             catch (OperationCanceledException) { return; }
             catch (ObjectDisposedException) { return; }
+            catch (InvalidOperationException) { return; } // listener.Stop() before pending Accept resolves
             catch (Exception ex) { StatusChanged?.Invoke(this, $"Accept error: {ex.Message}"); }
         }
     }
@@ -80,7 +84,8 @@ public sealed class PrintListener
         var remote = client.Client.RemoteEndPoint?.ToString() ?? "?";
         var localAddr = (client.Client.LocalEndPoint as IPEndPoint)?.Address ?? IPAddress.Loopback;
         var localAddrStr = localAddr.ToString();
-        int slotKey = localAddr.GetAddressBytes()[^1]; // loopback last octet — the per-tab logo slot key
+        var addrBytes = localAddr.GetAddressBytes();
+        int slotKey = addrBytes[addrBytes.Length - 1]; // loopback last octet — the per-tab logo slot key
         _log?.Line($"connected {remote} -> {localAddrStr}");
 
         var reqMs = new MemoryStream();
@@ -95,7 +100,7 @@ public sealed class PrintListener
             while (true)
             {
                 int read;
-                try { read = await clientStream.ReadAsync(readBuf, ct); }
+                try { read = await clientStream.ReadAsync(readBuf, 0, readBuf.Length, ct); }
                 catch (OperationCanceledException) { break; }
                 catch (IOException) { break; }
                 if (read <= 0) break;
@@ -209,7 +214,7 @@ public sealed class PrintListener
 
             if (pendingReply != null)
             {
-                try { await clientStream.WriteAsync(pendingReply, ct); }
+                try { await clientStream.WriteAsync(pendingReply, 0, pendingReply.Length, ct); }
                 catch (IOException) { return; }
                 catch (ObjectDisposedException) { return; }
             }

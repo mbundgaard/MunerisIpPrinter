@@ -18,16 +18,19 @@ public static class LogoBitmap
         int payloadLen = x * y * 8;
         if (slot.Length != 2 + payloadLen) return null;
 
-        return Decode(x, y, new ReadOnlySpan<byte>(slot, 2, payloadLen));
+        return Decode(x, y, slot, 2, payloadLen);
     }
 
-    public static BitmapSource Decode(byte x, byte y, ReadOnlySpan<byte> payload)
+    /// <summary>Decodes <paramref name="length"/> bytes of GS * column-major data starting at
+    /// <paramref name="offset"/> in <paramref name="payload"/>. byte[]+offset+length stays compatible
+    /// with .NET Framework 4.6.2 (no ReadOnlySpan in the BCL).</summary>
+    public static BitmapSource Decode(byte x, byte y, byte[] payload, int offset, int length)
     {
         int width = x * 8;
         int height = y * 8;
         var pixels = new byte[width * height];
         // Default: white (255). ESC/POS bit set = printed dot = black (0).
-        pixels.AsSpan().Fill(255);
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = 255;
 
         // GS * data is column-major: for each of (8x) columns, y bytes of 8 vertical dots each (MSB top).
         for (int col = 0; col < width; col++)
@@ -35,7 +38,7 @@ public static class LogoBitmap
             int colBase = col * y;
             for (int rowByte = 0; rowByte < y; rowByte++)
             {
-                byte b = payload[colBase + rowByte];
+                byte b = payload[offset + colBase + rowByte];
                 if (b == 0) continue;
                 int rowTop = rowByte * 8;
                 for (int bit = 0; bit < 8; bit++)

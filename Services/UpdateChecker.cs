@@ -1,5 +1,6 @@
+using System.Net;
 using System.Net.Http;
-using System.Text.Json;
+using System.Text;
 
 namespace MunerisIpPrinter.Services;
 
@@ -19,36 +20,37 @@ public static class UpdateChecker
 
     static UpdateChecker()
     {
+        // GitHub requires TLS 1.2+; .NET Framework 4.6.2 doesn't default to it on older Windows.
+        try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; }
+        catch { /* missing on very old Windows — silent */ }
+
         // GitHub rejects requests with no User-Agent.
         Http.DefaultRequestHeaders.UserAgent.ParseAdd("MunerisIpPrinter-Updater");
         Http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
     }
 
     /// <summary>Returns the latest release if it's strictly newer than <paramref name="current"/>, otherwise null.</summary>
-    /// <param name="repo">"owner/repo" — e.g. "muneris/MunerisIpPrinter".</param>
+    /// <param name="repo">"owner/repo" — e.g. "mbundgaard/MunerisIpPrinter".</param>
     public static async Task<UpdateInfo?> CheckAsync(string repo, Version current, CancellationToken ct = default)
     {
         try
         {
             var url = $"https://api.github.com/repos/{repo}/releases/latest";
-            var json = await Http.GetStringAsync(url, ct).ConfigureAwait(false);
-            using var doc = JsonDocument.Parse(json);
+            var json = await Http.GetStringAsync(url).ConfigureAwait(false);
 
-            var root = doc.RootElement;
-            if (!root.TryGetProperty("tag_name", out var tagEl)) return null;
-            if (!root.TryGetProperty("html_url", out var urlEl)) return null;
-
-            var tag = tagEl.GetString();
-            var releaseUrl = urlEl.GetString();
+            // Tag name and release page URL are top-level fields and appear before any nested
+            // author/asset objects, so a "first occurrence wins" extract picks the release-level
+            // values without needing a full JSON parser. Avoids a System.Text.Json dependency on net462.
+            var tag = ExtractFirstStringField(json, "tag_name");
+            var releaseUrl = ExtractFirstStringField(json, "html_url");
             if (string.IsNullOrWhiteSpace(tag) || string.IsNullOrWhiteSpace(releaseUrl)) return null;
 
             // Tags are conventionally "v1.2.3"; strip the leading v.
-            var versionPart = tag.StartsWith('v') || tag.StartsWith('V') ? tag[1..] : tag;
+            var versionPart = tag!.StartsWith("v") || tag!.StartsWith("V") ? tag!.Substring(1) : tag!;
             if (!Version.TryParse(versionPart, out var latest)) return null;
 
-            // Compare on the three meaningful components — assembly versions usually carry a 0 revision.
             return Normalize(latest) > Normalize(current)
-                ? new UpdateInfo(latest, releaseUrl)
+                ? new UpdateInfo(latest, releaseUrl!)
                 : null;
         }
         catch
@@ -60,4 +62,52 @@ public static class UpdateChecker
 
     private static Version Normalize(Version v)
         => new(v.Major, v.Minor, Math.Max(0, v.Build));
+
+    /// <summary>Pulls the first <c>"fieldName": "value"</c> pair out of a JSON document.
+    /// Handles \\, \", \n, \t, \r, \/ and \uXXXX escapes inside the value.</summary>
+    private static string? ExtractFirstStringField(string json, string fieldName)
+    {
+        var needle = "\"" + fieldName + "\"";
+        int idx = json.IndexOf(needle, StringComparison.Ordinal);
+        if (idx < 0) return null;
+
+        int i = idx + needle.Length;
+        while (i < json.Length && char.IsWhiteSpace(json[i])) i++;
+        if (i >= json.Length || json[i] != ':') return null;
+        i++;
+        while (i < json.Length && char.IsWhiteSpace(json[i])) i++;
+        if (i >= json.Length || json[i] != '"') return null;
+        i++;
+
+        var sb = new StringBuilder();
+        while (i < json.Length)
+        {
+            char c = json[i++];
+            if (c == '"') return sb.ToString();
+            if (c == '\\')
+            {
+                if (i >= json.Length) return null;
+                char e = json[i++];
+                switch (e)
+                {
+                    case '"': sb.Append('"'); break;
+                    case '\\': sb.Append('\\'); break;
+                    case '/': sb.Append('/'); break;
+                    case 'b': sb.Append('\b'); break;
+                    case 'f': sb.Append('\f'); break;
+                    case 'n': sb.Append('\n'); break;
+                    case 'r': sb.Append('\r'); break;
+                    case 't': sb.Append('\t'); break;
+                    case 'u':
+                        if (i + 4 > json.Length) return null;
+                        sb.Append((char)int.Parse(json.Substring(i, 4), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture));
+                        i += 4;
+                        break;
+                    default: return null;
+                }
+            }
+            else sb.Append(c);
+        }
+        return null;
+    }
 }

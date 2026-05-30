@@ -66,12 +66,15 @@ public sealed class SlotStore
         var dir = Path.GetDirectoryName(_path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
 
+        // BinaryWriter writes int32 LE — same layout as the original Span-based Write calls
+        // and compatible with .NET Framework 4.6.2 which lacks FileStream's Span overload.
         using var fs = new FileStream(_path, FileMode.Create, FileAccess.Write);
-        foreach (var (key, data) in all)
+        using var bw = new BinaryWriter(fs);
+        foreach (var kv in all)
         {
-            fs.Write(BitConverter.GetBytes(key));
-            fs.Write(BitConverter.GetBytes(data.Length));
-            fs.Write(data);
+            bw.Write(kv.Key);
+            bw.Write(kv.Value.Length);
+            bw.Write(kv.Value);
         }
     }
 }

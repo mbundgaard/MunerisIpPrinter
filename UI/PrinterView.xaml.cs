@@ -51,7 +51,8 @@ public partial class PrinterView : UserControl
         InitializeComponent();
         Config = config;
         _slotStore = slotStore;
-        _slotKey = IPAddress.Parse(config.Address).GetAddressBytes()[^1];
+        var bytes = IPAddress.Parse(config.Address).GetAddressBytes();
+        _slotKey = bytes[bytes.Length - 1];
         _historyCount = historyCount;
 
         ComputePaperDimensions();

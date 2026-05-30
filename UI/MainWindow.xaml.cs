@@ -270,8 +270,8 @@ public partial class MainWindow : Window
             if (nameEdit.Visibility != Visibility.Visible) return;
             if (commit)
             {
-                var newName = nameEdit.Text?.Trim();
-                if (!string.IsNullOrEmpty(newName) && newName != name.Text)
+                var newName = (nameEdit.Text ?? string.Empty).Trim();
+                if (newName.Length > 0 && newName != name.Text)
                 {
                     name.Text = newName;
                     view.Config.Name = newName;
@@ -600,7 +600,8 @@ public partial class MainWindow : Window
             "Muneris IP Printer", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (choice != MessageBoxResult.Yes) return;
 
-        var exe = Environment.ProcessPath;
+        // Environment.ProcessPath is .NET 6+; on net462 we use the entry assembly path.
+        var exe = Assembly.GetEntryAssembly()?.Location;
         if (exe != null)
         {
             // Relaunch after a short delay so this instance fully exits and releases the port first.

@@ -1,7 +1,7 @@
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using MunerisIpPrinter.Infrastructure;
 
 namespace MunerisIpPrinter.Models;
 
@@ -10,7 +10,6 @@ public sealed class PrinterConfig : INotifyPropertyChanged
     private string _name = "Printer";
     private string _address = "127.0.0.1";
 
-    [JsonPropertyName("name")]
     public string Name
     {
         get => _name;
@@ -18,7 +17,6 @@ public sealed class PrinterConfig : INotifyPropertyChanged
     }
 
     /// <summary>Loopback address — derived from list position (127.0.0.1, .2, …). Not persisted.</summary>
-    [JsonIgnore]
     public string Address
     {
         get => _address;
@@ -33,29 +31,22 @@ public sealed class PrinterConfig : INotifyPropertyChanged
 
 public sealed class AppSettings
 {
-    [JsonPropertyName("printers")]
     public List<PrinterConfig> Printers { get; set; } = new();
 
     /// <summary>When true, the app writes raw req/resp dumps and a debug.log into a "logs" folder next to the exe.</summary>
-    [JsonPropertyName("logging")]
     public bool LoggingEnabled { get; set; }
 
     /// <summary>
     /// How many recent receipts to keep (in memory and persisted in the .bin) per printer.
     /// 0 disables history entirely — nothing is loaded, capped, or saved.
     /// </summary>
-    [JsonPropertyName("historyCount")]
     public int HistoryCount { get; set; } = DefaultHistoryCount;
 
     /// <summary>Width of the left sidebar in DIPs. Persisted across runs and clamped on load.</summary>
-    [JsonPropertyName("sidebarWidth")]
     public double SidebarWidth { get; set; } = DefaultSidebarWidth;
 
     /// <summary>Last main-window size in DIPs. Persisted on close and clamped on load.</summary>
-    [JsonPropertyName("windowWidth")]
     public double WindowWidth { get; set; } = DefaultWindowWidth;
-
-    [JsonPropertyName("windowHeight")]
     public double WindowHeight { get; set; } = DefaultWindowHeight;
 
     public const int DefaultHistoryCount = 0;
@@ -69,20 +60,18 @@ public sealed class AppSettings
     public const double MinWindowWidth = 500;
     public const double MinWindowHeight = 400;
 
-    public static string FilePath =>
-        Path.Combine(AppContext.BaseDirectory, "MunerisIpPrinter.json");
+    // Settings live alongside logos and receipt history in MunerisIpPrinter.bin.
+    // Slot 0 doesn't collide with logo slots (1-255 = address octets) or history
+    // slots (1000-1255). Format is versioned so future fields can be appended safely.
+    private const int SettingsSlot = 0;
+    private const byte FormatVersion = 1;
 
-    private static readonly JsonSerializerOptions JsonOpts = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-        WriteIndented = true,
-    };
+    public static string StorePath =>
+        Path.Combine(AppContext.BaseDirectory, "MunerisIpPrinter.bin");
 
     /// <summary>
-    /// Loads MunerisIpPrinter.json next to the exe. Missing/invalid → default of one printer "Printer".
-    /// Addresses are always derived from list position; never persisted. Never creates the file.
+    /// Loads settings from slot 0 of MunerisIpPrinter.bin. Missing/invalid → default of one printer.
+    /// Addresses are always derived from list position; never persisted.
     /// </summary>
     public static AppSettings Load()
     {
@@ -93,11 +82,12 @@ public sealed class AppSettings
 
         try
         {
-            if (File.Exists(FilePath))
+            var store = new SlotStore(StorePath);
+            var blob = store.Read(SettingsSlot);
+            if (blob != null && blob.Length > 0)
             {
-                var json = File.ReadAllText(FilePath);
-                var loaded = JsonSerializer.Deserialize<AppSettings>(json, JsonOpts);
-                if (loaded?.Printers is { Count: > 0 })
+                var loaded = FromBytes(blob);
+                if (loaded != null && loaded.Printers.Count > 0)
                 {
                     loaded.AssignAddresses();
                     loaded.HistoryCount = ClampHistoryCount(loaded.HistoryCount);
@@ -110,7 +100,7 @@ public sealed class AppSettings
         }
         catch
         {
-            // Malformed config — fall through to the safe default.
+            // Corrupt slot or IO error — fall through to the safe default.
         }
 
         fallback.AssignAddresses();
@@ -126,21 +116,72 @@ public sealed class AppSettings
 
     /// <summary>0 = disabled; anything above <see cref="MaxHistoryCount"/> is capped; negatives → 0.</summary>
     public static int ClampHistoryCount(int value)
-        => Math.Clamp(value, 0, MaxHistoryCount);
+        => value < 0 ? 0 : (value > MaxHistoryCount ? MaxHistoryCount : value);
 
     /// <summary>Bounds the persisted sidebar width; falls back to the default if NaN/zero.</summary>
     public static double ClampSidebarWidth(double value)
-        => double.IsNaN(value) || value <= 0 ? DefaultSidebarWidth
-           : Math.Clamp(value, MinSidebarWidth, MaxSidebarWidth);
+    {
+        if (double.IsNaN(value) || value <= 0) return DefaultSidebarWidth;
+        if (value < MinSidebarWidth) return MinSidebarWidth;
+        if (value > MaxSidebarWidth) return MaxSidebarWidth;
+        return value;
+    }
 
-    /// <summary>Floors a window dimension at <paramref name="min"/>; falls back to <paramref name="fallback"/> on NaN/zero.
-    /// No upper clamp — the user might run on an ultrawide and that's their call.</summary>
+    /// <summary>Floors a window dimension at <paramref name="min"/>; falls back to <paramref name="fallback"/> on NaN/zero.</summary>
     public static double ClampWindowDim(double value, double fallback, double min)
         => double.IsNaN(value) || value <= 0 ? fallback : Math.Max(value, min);
 
     public void Save()
     {
-        var json = JsonSerializer.Serialize(this, JsonOpts);
-        File.WriteAllText(FilePath, json);
+        var store = new SlotStore(StorePath);
+        store.Write(SettingsSlot, ToBytes());
+    }
+
+    private byte[] ToBytes()
+    {
+        using var ms = new MemoryStream();
+        using (var bw = new BinaryWriter(ms))
+        {
+            bw.Write(FormatVersion);
+            bw.Write(Printers.Count);
+            foreach (var p in Printers)
+                bw.Write(p.Name ?? string.Empty); // BinaryWriter prefixes a 7-bit-encoded length
+            bw.Write(LoggingEnabled);
+            bw.Write(HistoryCount);
+            bw.Write(SidebarWidth);
+            bw.Write(WindowWidth);
+            bw.Write(WindowHeight);
+        }
+        return ms.ToArray();
+    }
+
+    private static AppSettings? FromBytes(byte[] blob)
+    {
+        try
+        {
+            using var ms = new MemoryStream(blob);
+            using var br = new BinaryReader(ms);
+
+            byte version = br.ReadByte();
+            if (version != FormatVersion) return null; // unknown layout — ignore
+
+            int count = br.ReadInt32();
+            if (count < 0 || count > MaxPrinters * 4) return null; // sanity check
+
+            var s = new AppSettings { Printers = new List<PrinterConfig>(count) };
+            for (int i = 0; i < count; i++)
+                s.Printers.Add(new PrinterConfig { Name = br.ReadString() });
+
+            s.LoggingEnabled = br.ReadBoolean();
+            s.HistoryCount = br.ReadInt32();
+            s.SidebarWidth = br.ReadDouble();
+            s.WindowWidth = br.ReadDouble();
+            s.WindowHeight = br.ReadDouble();
+            return s;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

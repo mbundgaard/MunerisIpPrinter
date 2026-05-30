@@ -24,10 +24,7 @@ public static class EscPosTextExtractor
         { 34, 864 },    // PC864 Arabic
     };
 
-    static EscPosTextExtractor()
-    {
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-    }
+    // .NET Framework 4.6.2 ships every codepage in the BCL — no provider registration needed.
 
     public static string Extract(byte[] data)
     {
@@ -44,7 +41,7 @@ public static class EscPosTextExtractor
             }
             catch
             {
-                sb.Append(Encoding.Latin1.GetString(textBuf.ToArray()));
+                sb.Append(Encoding.GetEncoding(28591).GetString(textBuf.ToArray())); // ISO-8859-1 (Latin-1)
             }
             textBuf.Clear();
         }
@@ -107,7 +104,7 @@ public static class EscPosTextExtractor
         {
             int lineEnd = text.IndexOf('\n', start);
             int sliceEnd = lineEnd < 0 ? text.Length : lineEnd;
-            if (!string.IsNullOrWhiteSpace(text[start..sliceEnd])) break;
+            if (!string.IsNullOrWhiteSpace(text.Substring(start, sliceEnd - start))) break;
             if (lineEnd < 0) return string.Empty;
             start = lineEnd + 1;
         }
@@ -118,11 +115,11 @@ public static class EscPosTextExtractor
         {
             int lineStart = text.LastIndexOf('\n', end - 1);
             int sliceStart = lineStart < 0 ? start : lineStart + 1;
-            if (!string.IsNullOrWhiteSpace(text[sliceStart..end])) break;
+            if (!string.IsNullOrWhiteSpace(text.Substring(sliceStart, end - sliceStart))) break;
             end = lineStart < 0 ? start : lineStart;
         }
 
-        return text[start..end];
+        return text.Substring(start, end - start);
     }
 
     // ESC commands: parameter counts based on Epson ESC/POS spec

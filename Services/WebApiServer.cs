@@ -67,7 +67,7 @@ public sealed class WebApiServer : IDisposable
                 ctx.Response.StatusCode = 500;
                 ctx.Response.ContentType = "text/plain; charset=utf-8";
                 var bytes = Encoding.UTF8.GetBytes(ex.ToString());
-                await ctx.Response.OutputStream.WriteAsync(bytes, ct).ConfigureAwait(false);
+                await ctx.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length, ct).ConfigureAwait(false);
             }
             catch { }
             try { ctx.Response.Close(); } catch { }
@@ -91,7 +91,7 @@ public sealed class WebApiServer : IDisposable
 
         ctx.Response.ContentType = "image/png";
         ctx.Response.ContentLength64 = png.Length;
-        await ctx.Response.OutputStream.WriteAsync(png).ConfigureAwait(false);
+        await ctx.Response.OutputStream.WriteAsync(png, 0, png.Length).ConfigureAwait(false);
         ctx.Response.Close();
     }
 
