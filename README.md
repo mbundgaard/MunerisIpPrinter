@@ -10,14 +10,22 @@ demoing a POS deployment without wiring up real thermal printers.
 
 ## What it's for
 
-Setting up or debugging a POS site usually means dragging a box of thermal
-printers between locations — or worse, faking it through tcpdump and SSH
-tunnels. This is the friction-free version:
+The usual ways to test POS print output without physical printers fall short:
+
+- **Print-to-disk** routes each receipt to a flat file. You see the text, but
+  not the logo, not the QR codes, not anything graphical — and you have to
+  hunt across dozens of files to compare runs.
+- **Dragging a box of thermal printers** between sites works but is exactly
+  as fun as it sounds.
+
+This is the friction-free version:
 
 - Run `MunerisIpPrinter.exe` on a workstation or test box.
-- Configure the POS as if a printer existed at `127.0.0.1:9100`, `127.0.0.2:9100`, … (one logical printer per loopback IP, up to fifteen).
-- Every receipt the POS would have printed shows up in the app, decoded and
-  formatted as the kitchen would see it.
+- Configure the POS as if a printer existed at `127.0.0.1:9100`,
+  `127.0.0.2:9100`, … (one logical printer per loopback IP, up to fifteen).
+- Every receipt the POS would have printed shows up in the app, fully
+  rendered — text, logos, QR codes, the lot — stacked newest-on-top per
+  printer so you can scroll through a run and compare.
 
 Typical scenarios:
 
