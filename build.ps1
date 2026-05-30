@@ -61,7 +61,9 @@ $built = 'bin\Release\net462\MunerisIpPrinter.exe'
 if (-not (Test-Path $built)) { throw "expected output not found: $built" }
 
 New-Item -ItemType Directory -Path $publishDir | Out-Null
-$final = Join-Path $publishDir ("MunerisIpPrinter-{0}.exe" -f $version)
+# Stable filename so user shortcuts keep working through auto-updates and manual swaps.
+# The version is still embedded in the assembly and visible in About / sidebar.
+$final = Join-Path $publishDir 'MunerisIpPrinter.exe'
 Copy-Item $built $final -Force
 
 $sizeKb = [Math]::Round((Get-Item $final).Length / 1KB, 1)

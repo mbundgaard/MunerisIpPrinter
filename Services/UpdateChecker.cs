@@ -51,12 +51,12 @@ public static class UpdateChecker
 
             if (Normalize(latest) <= Normalize(current)) return null;
 
-            // Try to find the published .exe asset for this version so callers can
-            // download it directly instead of sending the user to the release page.
-            // Convention: MunerisIpPrinter-<version>.exe — Version.ToString() emits whatever
-            // components are present, so both legacy 1.0.4 and CalVer 2026.5.30.5 work.
-            var assetName = $"MunerisIpPrinter-{latest}.exe";
-            var assetUrl = FindAssetDownloadUrl(json, assetName);
+            // Releases from v2026.5.30.8 onwards attach the asset under a stable filename
+            // ("MunerisIpPrinter.exe") so user shortcuts keep working through swaps. Older
+            // releases used a per-version name ("MunerisIpPrinter-2026.5.30.5.exe") — keep
+            // that as a fallback so we don't lose auto-update against the existing history.
+            var assetUrl = FindAssetDownloadUrl(json, "MunerisIpPrinter.exe")
+                        ?? FindAssetDownloadUrl(json, $"MunerisIpPrinter-{latest}.exe");
             return new UpdateInfo(latest, releaseUrl!, assetUrl);
         }
         catch
