@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="About"
         Icon="/assets/app.ico"
-        Width="400" Height="420"
+        Width="400" Height="370"
         Background="#040D1A"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
@@ -14,7 +14,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" HorizontalAlignment="Center">
@@ -84,12 +83,5 @@
                        HorizontalAlignment="Center"
                        Margin="0,4,0,0"/>
         </StackPanel>
-
-        <Button Grid.Row="4" Content="Close" Click="Close_Click"
-                Style="{StaticResource CopyButtonStyle}"
-                Padding="18,6"
-                HorizontalAlignment="Center"
-                Margin="0,16,0,0"
-                IsDefault="True" IsCancel="True"/>
     </Grid>
 </Window>
