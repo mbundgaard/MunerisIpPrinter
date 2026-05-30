@@ -25,6 +25,12 @@ public partial class MainWindow : Window
 
     private string? _updateUrl;
     private string? _downloadedUpdatePath;
+    private CancellationTokenSource? _updatePollCts;
+
+    /// <summary>How often the running app checks GitHub for a newer release. Anything
+    /// shorter risks hitting the 60-req/hr anonymous rate limit; longer means a printer
+    /// that's been open all day still picks up new builds.</summary>
+    private static readonly TimeSpan UpdatePollInterval = TimeSpan.FromHours(4);
 
     private static readonly Brush SidebarItemIdle = new SolidColorBrush(Colors.Transparent);
     private static readonly Brush SidebarItemHover = new SolidColorBrush(Color.FromRgb(0x0F, 0x21, 0x38));
@@ -108,15 +114,39 @@ public partial class MainWindow : Window
             try { _api.Start(); } catch { /* port unavailable — non-fatal */ }
 
             // background poll for a newer GitHub release; silent if offline or rate-limited.
+            // First check fires immediately, then re-checks every UpdatePollInterval — without
+            // this loop a long-running session would always be one restart behind.
             if (CurrentVersion is { } cur)
-                _ = CheckForUpdatesAsync(cur);
+            {
+                _updatePollCts = new CancellationTokenSource();
+                _ = PollForUpdatesAsync(cur, _updatePollCts.Token);
+            }
         };
         Closed += (_, _) =>
         {
             _listener.Stop();
             _api?.Dispose();
+            _updatePollCts?.Cancel();
             PersistSidebarWidth();
         };
+    }
+
+    /// <summary>Long-running background loop. Runs <see cref="CheckForUpdatesAsync"/> once
+    /// immediately, then again every <see cref="UpdatePollInterval"/> until the window closes.
+    /// Skips the call entirely while an update is already downloaded and waiting on a click —
+    /// no point hammering GitHub when the user just hasn't restarted yet.</summary>
+    private async Task PollForUpdatesAsync(Version current, CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            if (string.IsNullOrEmpty(_downloadedUpdatePath) || !System.IO.File.Exists(_downloadedUpdatePath))
+            {
+                try { await CheckForUpdatesAsync(current).ConfigureAwait(false); }
+                catch { /* update poll must never crash the app */ }
+            }
+            try { await Task.Delay(UpdatePollInterval, ct).ConfigureAwait(false); }
+            catch (TaskCanceledException) { return; }
+        }
     }
 
     /// <summary>Three-step update flow: check → background download → sidebar nudge.
