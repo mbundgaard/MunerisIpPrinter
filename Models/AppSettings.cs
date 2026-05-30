@@ -66,8 +66,36 @@ public sealed class AppSettings
     private const int SettingsSlot = 0;
     private const byte FormatVersion = 1;
 
-    public static string StorePath =>
-        Path.Combine(AppContext.BaseDirectory, "MunerisIpPrinter.bin");
+    /// <summary>Per-user app data root, e.g. <c>C:\Users\&lt;user&gt;\AppData\Local\MunerisIpPrinter</c>.
+    /// All persistent state (settings, logo cache, receipt history, optional logs) lives here so
+    /// the .exe folder stays a single portable file.</summary>
+    public static readonly string AppDataDir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "MunerisIpPrinter");
+
+    public static readonly string StorePath = Path.Combine(AppDataDir, "MunerisIpPrinter.bin");
+
+    static AppSettings()
+    {
+        TryMigrateLegacyStore();
+    }
+
+    /// <summary>One-shot migration: if the .bin is still sitting next to the .exe from an older
+    /// build, move it into <see cref="AppDataDir"/>. Best-effort — if the move fails the user just
+    /// starts with a fresh store.</summary>
+    private static void TryMigrateLegacyStore()
+    {
+        try
+        {
+            if (File.Exists(StorePath)) return;
+            var legacy = Path.Combine(AppContext.BaseDirectory, "MunerisIpPrinter.bin");
+            if (string.Equals(legacy, StorePath, StringComparison.OrdinalIgnoreCase)) return;
+            if (!File.Exists(legacy)) return;
+            Directory.CreateDirectory(AppDataDir);
+            File.Move(legacy, StorePath);
+        }
+        catch { /* best-effort migration */ }
+    }
 
     /// <summary>
     /// Loads settings from slot 0 of MunerisIpPrinter.bin. Missing/invalid → default of one printer.

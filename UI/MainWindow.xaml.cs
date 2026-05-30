@@ -59,10 +59,10 @@ public partial class MainWindow : Window
         SidebarColumn.Width = new GridLength(settings.SidebarWidth);
         Width = settings.WindowWidth;
         Height = settings.WindowHeight;
-        _log = settings.LoggingEnabled ? new JobLog(AppContext.BaseDirectory) : null;
-
-        var slotStore = new SlotStore(
-            Path.Combine(AppContext.BaseDirectory, "MunerisIpPrinter.bin"));
+        // All persistent state lives under %LOCALAPPDATA%\MunerisIpPrinter so the .exe folder
+        // stays a single portable file (matches the "drop into Dropbox toolkit" deployment).
+        _log = settings.LoggingEnabled ? new JobLog(AppSettings.AppDataDir) : null;
+        var slotStore = new SlotStore(AppSettings.StorePath);
 
         // Bind one socket per configured loopback address (127.0.0.1, .2, …) — keeps Windows
         // Defender Firewall quiet (loopback bypasses it) and isolates per-printer routing at
@@ -157,7 +157,13 @@ public partial class MainWindow : Window
     {
         var info = await UpdateChecker.CheckAsync(GitHubRepo, current).ConfigureAwait(false);
         if (info == null) return;
+        await ApplyUpdateInfoAsync(info).ConfigureAwait(false);
+    }
 
+    /// <summary>Drives the sidebar nudge + background download given a discovered update.
+    /// Split out so the periodic poll and the menu's "Check for updates" share the same flow.</summary>
+    private async Task ApplyUpdateInfoAsync(UpdateInfo info)
+    {
         var versionStr = info.LatestVersion.ToString();
 
         // Phase 1: just-discovered. The link sends the user to the release page in case
@@ -186,6 +192,37 @@ public partial class MainWindow : Window
             UpdateLink.Text = "Update ready · restart";
             UpdateLink.ToolTip = $"Click to install v{versionStr} and restart";
         });
+    }
+
+    /// <summary>Manual "Check for updates" invocation from the hamburger menu.
+    /// Triggers the same flow as the periodic poll, but also reports the no-update case
+    /// (which the silent poll just skips).</summary>
+    private async void CheckForUpdatesMenu_Click(object sender, RoutedEventArgs e)
+    {
+        // If an update is already downloaded, point the user at the existing sidebar nudge
+        // instead of doing redundant work.
+        if (!string.IsNullOrEmpty(_downloadedUpdatePath) && System.IO.File.Exists(_downloadedUpdatePath))
+        {
+            MessageBox.Show(this,
+                "An update is already downloaded — click \"Update ready · restart\" at the bottom of the sidebar to install it.",
+                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (CurrentVersion == null) return;
+
+        var info = await UpdateChecker.CheckAsync(GitHubRepo, CurrentVersion).ConfigureAwait(false);
+        if (info == null)
+        {
+            // null also covers offline/rate-limited; user will know which it is if they
+            // just tried this and it failed for real.
+            await Dispatcher.InvokeAsync(() =>
+                MessageBox.Show(this,
+                    $"You're running the latest version (v{CurrentVersion}).",
+                    AppName, MessageBoxButton.OK, MessageBoxImage.Information));
+            return;
+        }
+        await ApplyUpdateInfoAsync(info).ConfigureAwait(false);
     }
 
     private void UpdateLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -616,6 +653,14 @@ public partial class MainWindow : Window
             };
             settings.Click += SettingsButton_Click;
 
+            var check = new MenuItem
+            {
+                Header = "Check for updates",
+                Icon = MenuIcon(""),
+                Style = itemStyle,
+            };
+            check.Click += CheckForUpdatesMenu_Click;
+
             var about = new MenuItem
             {
                 Header = "About",
@@ -627,6 +672,7 @@ public partial class MainWindow : Window
             var menu = new ContextMenu { Style = (Style)FindResource("AppContextMenuStyle") };
             menu.Items.Add(clear);
             menu.Items.Add(settings);
+            menu.Items.Add(check);
             menu.Items.Add(about);
             btn.ContextMenu = menu;
         }
@@ -666,10 +712,11 @@ public partial class MainWindow : Window
         var dlg = new SettingsWindow { Owner = this };
         if (dlg.ShowDialog() != true) return;
 
-        var choice = MessageBox.Show(this,
-            "Settings saved. Restart now to apply?",
-            "Muneris IP Printer", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (choice != MessageBoxResult.Yes) return;
+        if (!ConfirmDialog.Ask(this,
+                title: "Settings saved",
+                message: "Restart the app to apply the new settings? Your changes are already saved either way.",
+                confirm: "Restart now",
+                cancel: "Later")) return;
 
         // Environment.ProcessPath is .NET 6+; on net462 we use the entry assembly path.
         var exe = Assembly.GetEntryAssembly()?.Location;
