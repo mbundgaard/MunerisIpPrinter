@@ -151,7 +151,7 @@ public partial class MainWindow : Window
 
     /// <summary>Three-step update flow: check → background download → sidebar nudge.
     /// While the download is in flight, the sidebar link opens the release page in a browser.
-    /// Once the download lands, the link flips to "Update ready · restart" and clicking it
+    /// Once the download lands, the link flips to "Update ready!" and clicking it
     /// confirms + applies via UpdateApplier.</summary>
     private async Task CheckForUpdatesAsync(Version current)
     {
@@ -189,7 +189,7 @@ public partial class MainWindow : Window
         await Dispatcher.InvokeAsync(() =>
         {
             _downloadedUpdatePath = dlPath;
-            UpdateLink.Text = "Update ready · restart";
+            UpdateLink.Text = "Update ready!";
             UpdateLink.ToolTip = $"Click to install v{versionStr} and restart";
         });
     }
@@ -204,7 +204,7 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(_downloadedUpdatePath) && System.IO.File.Exists(_downloadedUpdatePath))
         {
             ConfirmDialog.Show(this, "Update ready",
-                "An update is already downloaded — click \"Update ready · restart\" at the bottom of the sidebar to install it.");
+                "An update is already downloaded — click \"Update ready!\" at the bottom of the sidebar to install it.");
             return;
         }
 
@@ -226,7 +226,7 @@ public partial class MainWindow : Window
     private void UpdateLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         // If a fresh build is already downloaded, clicking applies + restarts immediately.
-        // The link itself reads "Update ready · restart" so the action is already self-describing —
+        // The link itself reads "Update ready!" so the action is already self-describing —
         // no need for a separate yes/no confirm.
         if (!string.IsNullOrEmpty(_downloadedUpdatePath) && System.IO.File.Exists(_downloadedUpdatePath))
         {
