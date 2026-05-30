@@ -55,8 +55,8 @@ public partial class SettingsWindow : Window
     {
         if (_printers.Count == 0)
         {
-            MessageBox.Show(this, "Add at least one printer.", "Settings",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            ConfirmDialog.Show(this, "Settings",
+                "Add at least one printer before saving.");
             return;
         }
 
@@ -78,8 +78,8 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, $"Could not save settings:\n{ex.Message}", "Settings",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            ConfirmDialog.Show(this, "Settings",
+                $"Could not save settings: {ex.Message}");
             return;
         }
 

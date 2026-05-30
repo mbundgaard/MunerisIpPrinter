@@ -102,9 +102,9 @@ public partial class MainWindow : Window
             catch (Exception ex)
             {
                 _log?.Line($"port {Port} bind failed: {ex.Message}");
-                MessageBox.Show(this,
-                    $"Port {Port} is already in use. Close whatever is using it, then start the app again.\n\n{ex.Message}",
-                    AppName, MessageBoxButton.OK, MessageBoxImage.Error);
+                ConfirmDialog.Show(this,
+                    "Port in use",
+                    $"Port {Port} is already in use. Close whatever is using it, then start the app again.\n\n{ex.Message}");
                 Application.Current.Shutdown();
                 return;
             }
@@ -696,11 +696,13 @@ public partial class MainWindow : Window
 
         int withJobs = _views.Count(v => v.HasJobs);
         var msg = _views.Count > 1
-            ? $"Clear receipts from {withJobs} printer{(withJobs == 1 ? "" : "s")}?\nThis cannot be undone."
-            : "Clear all receipts?\nThis cannot be undone.";
-        var result = MessageBox.Show(this, msg, AppName,
-            MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-        if (result != MessageBoxResult.Yes) return;
+            ? $"This will clear receipts from {withJobs} printer{(withJobs == 1 ? "" : "s")}. This cannot be undone."
+            : "This will clear all stored receipts. This cannot be undone.";
+        if (!ConfirmDialog.Ask(this,
+                title: "Clear receipts?",
+                message: msg,
+                confirm: "Clear",
+                cancel: "Cancel")) return;
 
         foreach (var v in _views) v.ClearAllJobs();
     }
