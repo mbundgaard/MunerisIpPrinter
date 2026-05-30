@@ -24,6 +24,7 @@ public partial class MainWindow : Window
         CurrentVersion is { } v ? $"v{v.ToString(3)}" : "v?";
 
     private string? _updateUrl;
+    private string? _downloadedUpdatePath;
 
     private static readonly Brush SidebarItemIdle = new SolidColorBrush(Colors.Transparent);
     private static readonly Brush SidebarItemHover = new SolidColorBrush(Color.FromRgb(0x0F, 0x21, 0x38));
@@ -114,23 +115,62 @@ public partial class MainWindow : Window
         };
     }
 
-    /// <summary>Polls GitHub Releases for a newer version; surfaces a link in the sidebar bottom if one exists.</summary>
+    /// <summary>Three-step update flow: check → background download → sidebar nudge.
+    /// While the download is in flight, the sidebar link opens the release page in a browser.
+    /// Once the download lands, the link flips to "Update ready · restart" and clicking it
+    /// confirms + applies via UpdateApplier.</summary>
     private async Task CheckForUpdatesAsync(Version current)
     {
         var info = await UpdateChecker.CheckAsync(GitHubRepo, current).ConfigureAwait(false);
         if (info == null) return;
 
+        var versionStr = info.LatestVersion.ToString(3);
+
+        // Phase 1: just-discovered. The link sends the user to the release page in case
+        // they want to see the changelog while the download is still streaming.
         await Dispatcher.InvokeAsync(() =>
         {
             _updateUrl = info.ReleaseUrl;
-            UpdateLink.Text = $"v{info.LatestVersion.ToString(3)} ↗";
-            UpdateLink.ToolTip = $"Update available — click to open the release page for v{info.LatestVersion.ToString(3)}";
+            UpdateLink.Text = $"v{versionStr} ↗";
+            UpdateLink.ToolTip = $"Update available — click to open the release page for v{versionStr}";
             UpdateLink.Visibility = Visibility.Visible;
+        });
+
+        if (string.IsNullOrEmpty(info.AssetUrl)) return; // no matching .exe asset — manual update only
+
+        // Phase 2: background download. %TEMP% is per-user and writable everywhere.
+        var dlPath = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            $"MunerisIpPrinter-update-{versionStr}.exe");
+        bool ok = await UpdateApplier.DownloadAsync(info.AssetUrl!, dlPath).ConfigureAwait(false);
+        if (!ok) return; // download failed — keep Phase 1 link so the user can still get to the release page
+
+        // Phase 3: ready. Same TextBlock, new wording and new click semantics.
+        await Dispatcher.InvokeAsync(() =>
+        {
+            _downloadedUpdatePath = dlPath;
+            UpdateLink.Text = "Update ready · restart";
+            UpdateLink.ToolTip = $"Click to install v{versionStr} and restart";
         });
     }
 
     private void UpdateLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
+        // If a fresh build is already downloaded, clicking applies + restarts.
+        if (!string.IsNullOrEmpty(_downloadedUpdatePath) && System.IO.File.Exists(_downloadedUpdatePath))
+        {
+            var result = MessageBox.Show(this,
+                "Restart now to install the update?",
+                AppName, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
+            if (result != MessageBoxResult.Yes) return;
+
+            var currentExe = Assembly.GetEntryAssembly()?.Location;
+            if (string.IsNullOrEmpty(currentExe)) return;
+            UpdateApplier.ApplyAndExit(_downloadedUpdatePath!, currentExe!);
+            return;
+        }
+
+        // Otherwise (download still running or failed), open the release page in a browser.
         if (string.IsNullOrEmpty(_updateUrl)) return;
         try
         {

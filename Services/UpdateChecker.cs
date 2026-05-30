@@ -4,7 +4,7 @@ using System.Text;
 
 namespace MunerisIpPrinter.Services;
 
-public sealed record UpdateInfo(Version LatestVersion, string ReleaseUrl);
+public sealed record UpdateInfo(Version LatestVersion, string ReleaseUrl, string? AssetUrl);
 
 /// <summary>
 /// Asks GitHub's Releases API whether there's a newer published release than the running build.
@@ -49,9 +49,14 @@ public static class UpdateChecker
             var versionPart = tag!.StartsWith("v") || tag!.StartsWith("V") ? tag!.Substring(1) : tag!;
             if (!Version.TryParse(versionPart, out var latest)) return null;
 
-            return Normalize(latest) > Normalize(current)
-                ? new UpdateInfo(latest, releaseUrl!)
-                : null;
+            if (Normalize(latest) <= Normalize(current)) return null;
+
+            // Try to find the published .exe asset for this version so callers can
+            // download it directly instead of sending the user to the release page.
+            // Convention: MunerisIpPrinter-<major>.<minor>.<build>.exe.
+            var assetName = $"MunerisIpPrinter-{latest.ToString(3)}.exe";
+            var assetUrl = FindAssetDownloadUrl(json, assetName);
+            return new UpdateInfo(latest, releaseUrl!, assetUrl);
         }
         catch
         {
@@ -62,6 +67,26 @@ public static class UpdateChecker
 
     private static Version Normalize(Version v)
         => new(v.Major, v.Minor, Math.Max(0, v.Build));
+
+    /// <summary>Finds the browser_download_url for the asset whose name matches <paramref name="assetName"/>.
+    /// Walks the JSON looking for the "name":"X" pair, then the next browser_download_url after it.
+    /// Tolerates GitHub's compact JSON as well as a single-space variant.</summary>
+    private static string? FindAssetDownloadUrl(string json, string assetName)
+    {
+        string[] candidates =
+        {
+            "\"name\":\"" + assetName + "\"",
+            "\"name\": \"" + assetName + "\"",
+        };
+        int nameIdx = -1;
+        foreach (var c in candidates)
+        {
+            nameIdx = json.IndexOf(c, StringComparison.Ordinal);
+            if (nameIdx >= 0) break;
+        }
+        if (nameIdx < 0) return null;
+        return ExtractFirstStringField(json.Substring(nameIdx), "browser_download_url");
+    }
 
     /// <summary>Pulls the first <c>"fieldName": "value"</c> pair out of a JSON document.
     /// Handles \\, \", \n, \t, \r, \/ and \uXXXX escapes inside the value.</summary>
