@@ -711,6 +711,22 @@ public partial class MainWindow : Window
                 RefreshBadge(item);
             }
         }
+
+        // Drop the current selection so the sidebar reads "fresh" — no row highlighted,
+        // no detail pane occupied. The next click selects normally.
+        Deselect();
+    }
+
+    private void Deselect()
+    {
+        if (_active == null) return;
+        _active.Visibility = Visibility.Collapsed;
+        if (_sidebarItems.TryGetValue(_active, out var prev))
+        {
+            prev.Root.Background = SidebarItemIdle;
+            prev.Accent.Visibility = Visibility.Collapsed;
+        }
+        _active = null;
     }
 
     private void OpenSettings()
