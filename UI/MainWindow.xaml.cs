@@ -279,7 +279,6 @@ public partial class MainWindow : Window
     }
 
     private static readonly Brush BadgeFill = new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D));
-    private static readonly Brush NameForegroundAlert = Brushes.White;
 
     private SidebarItem BuildSidebarItem(PrinterView view)
     {
@@ -464,21 +463,18 @@ public partial class MainWindow : Window
         };
     }
 
-    /// <summary>Sets the visible badge count and brightens the name when there's at least one unviewed receipt.</summary>
+    /// <summary>Shows or hides the unviewed-receipt badge and updates its count.
+    /// Doesn't touch the printer name — the badge alone is enough signal.</summary>
     private static void RefreshBadge(SidebarItem item)
     {
         if (item.Unviewed <= 0)
         {
             item.Badge.Visibility = Visibility.Collapsed;
-            item.Name.Foreground = SidebarItemText;
-            item.Name.FontWeight = FontWeights.SemiBold;
         }
         else
         {
             item.BadgeText.Text = item.Unviewed > 99 ? "99+" : item.Unviewed.ToString();
             item.Badge.Visibility = Visibility.Visible;
-            item.Name.Foreground = NameForegroundAlert;
-            item.Name.FontWeight = FontWeights.Bold;
         }
     }
 
