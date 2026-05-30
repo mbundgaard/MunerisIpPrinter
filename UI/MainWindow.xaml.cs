@@ -58,7 +58,11 @@ public partial class MainWindow : Window
         var slotStore = new SlotStore(
             Path.Combine(AppContext.BaseDirectory, "MunerisIpPrinter.bin"));
 
-        _listener = new PrintListener(Port, slotStore, _log);
+        // Bind one socket per configured loopback address (127.0.0.1, .2, …) — keeps Windows
+        // Defender Firewall quiet (loopback bypasses it) and isolates per-printer routing at
+        // the socket layer rather than inspecting LocalEndPoint at runtime.
+        var loopbackAddresses = settings.Printers.Select(p => System.Net.IPAddress.Parse(p.Address));
+        _listener = new PrintListener(Port, loopbackAddresses, slotStore, _log);
         _listener.JobReceived += OnJobReceived;
         _listener.StatusChanged += OnStatusChanged;
 

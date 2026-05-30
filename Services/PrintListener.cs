@@ -1,22 +1,27 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using MunerisIpPrinter.Infrastructure;
 using MunerisIpPrinter.Models;
 
 namespace MunerisIpPrinter.Services;
 
 /// <summary>
-/// A single TCP listener on 0.0.0.0:&lt;port&gt;. Every accepted connection is tagged with the
-/// local loopback address it came in on (127.0.0.x) so the host can route it to the right tab.
+/// Binds one TCP listener per configured loopback address (127.0.0.1, .2, …) on the same port.
+/// Loopback-only listeners don't trigger the Windows Defender Firewall prompt the way an
+/// <see cref="IPAddress.Any"/> bind does. Each accepted connection is tagged with the local
+/// loopback address it came in on so the host can route it to the right printer view.
 /// Replies to ESC/POS status queries and splits receipts at GS V cuts.
 /// </summary>
 public sealed class PrintListener
 {
     private readonly int _port;
+    private readonly IPAddress[] _addresses;
     private readonly SlotStore _slotStore;
     private readonly JobLog? _log;
-    private TcpListener? _listener;
+    private readonly List<TcpListener> _listeners = new();
     private CancellationTokenSource? _cts;
 
     public event EventHandler<PrintJob>? JobReceived;
@@ -24,43 +29,72 @@ public sealed class PrintListener
 
     public int Port => _port;
 
-    public PrintListener(int port, SlotStore slotStore, JobLog? log = null)
+    public PrintListener(int port, IEnumerable<IPAddress> addresses, SlotStore slotStore, JobLog? log = null)
     {
         _port = port;
+        _addresses = addresses.ToArray();
         _slotStore = slotStore;
         _log = log;
     }
 
-    /// <summary>Binds the port and starts accepting. Throws (e.g. SocketException) if the port is unavailable.</summary>
+    /// <summary>Binds one socket per configured loopback address. Retries briefly on
+    /// AddressAlreadyInUse so a restart (settings save, auto-update apply) can take over
+    /// the ports the prior instance is in the process of releasing.</summary>
     public void Start()
     {
-        if (_listener != null) return;
+        if (_listeners.Count > 0) return;
         var cts = new CancellationTokenSource();
-        var listener = new TcpListener(IPAddress.Any, _port);
+        var listeners = new List<TcpListener>();
         try
         {
-            listener.Start();
+            foreach (var addr in _addresses)
+                listeners.Add(BindWithRetry(addr, _port, attempts: 8, delayMs: 500));
         }
         catch
         {
+            foreach (var l in listeners) try { l.Stop(); } catch { /* best effort */ }
             cts.Dispose();
             throw;
         }
         _cts = cts;
-        _listener = listener;
-        StatusChanged?.Invoke(this, "Listening");
-        _ = AcceptLoop(_cts.Token);
+        _listeners.AddRange(listeners);
+        StatusChanged?.Invoke(this, $"Listening on {_listeners.Count} loopback address(es)");
+        foreach (var l in _listeners) _ = AcceptLoop(l, _cts.Token);
+    }
+
+    /// <summary>Tries to start a listener up to <paramref name="attempts"/> times, waiting
+    /// <paramref name="delayMs"/> between tries when the port is still held. Total max wait
+    /// = attempts × delayMs (~4 s by default).</summary>
+    private static TcpListener BindWithRetry(IPAddress addr, int port, int attempts, int delayMs)
+    {
+        SocketException? last = null;
+        for (int i = 0; i < attempts; i++)
+        {
+            var l = new TcpListener(addr, port);
+            try
+            {
+                l.Start();
+                return l;
+            }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
+            {
+                last = ex;
+                try { l.Stop(); } catch { /* ignore */ }
+                if (i < attempts - 1) Thread.Sleep(delayMs);
+            }
+        }
+        throw last!;
     }
 
     public void Stop()
     {
         _cts?.Cancel();
-        _listener?.Stop();
-        _listener = null;
+        foreach (var l in _listeners) try { l.Stop(); } catch { /* best effort */ }
+        _listeners.Clear();
         StatusChanged?.Invoke(this, "Stopped");
     }
 
-    private async Task AcceptLoop(CancellationToken ct)
+    private async Task AcceptLoop(TcpListener listener, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
@@ -69,7 +103,7 @@ public sealed class PrintListener
                 // .NET Framework 4.6.2 has no AcceptTcpClientAsync(CancellationToken) overload —
                 // Stop() closes the listener which causes the pending accept to throw, which is
                 // how we exit the loop.
-                var client = await _listener!.AcceptTcpClientAsync();
+                var client = await listener.AcceptTcpClientAsync();
                 _ = HandleClient(client, ct);
             }
             catch (OperationCanceledException) { return; }
