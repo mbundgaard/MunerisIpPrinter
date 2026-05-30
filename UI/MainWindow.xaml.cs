@@ -704,7 +704,17 @@ public partial class MainWindow : Window
                 confirm: "Clear",
                 cancel: "Cancel")) return;
 
-        foreach (var v in _views) v.ClearAllJobs();
+        foreach (var v in _views)
+        {
+            v.ClearAllJobs();
+            // The unviewed-count badge lives on the sidebar item, not the PrinterView —
+            // ClearAllJobs only wipes the receipts, so reset the badge here too.
+            if (_sidebarItems.TryGetValue(v, out var item))
+            {
+                item.Unviewed = 0;
+                RefreshBadge(item);
+            }
+        }
     }
 
     private void OpenSettings()
