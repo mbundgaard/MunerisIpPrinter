@@ -52,35 +52,12 @@ public static class UpdateApplier
         }
     }
 
-    /// <summary>Hands the swap off to a detached cmd.exe and shuts down the app.
-    /// The helper waits ~2 s for this process to release the .exe lock, then
-    /// move /Y replaces it and start launches the new build.</summary>
+    /// <summary>Hands the swap off to a detached helper and shuts down the app.
+    /// The helper Wait-Processes on the current PID, moves the downloaded exe over the
+    /// current one, then launches it — see <see cref="Relauncher"/> for the mechanics.</summary>
     public static void ApplyAndExit(string downloadedExe, string currentExe)
     {
-        // /c so cmd exits after the chain finishes.
-        // timeout + && chain so we only restart if the move actually succeeded.
-        // The empty quoted title after `start` is required when the exe path has spaces,
-        // otherwise cmd reads the quoted path as the window title.
-        var args = string.Format(
-            "/c timeout /t 2 /nobreak >nul && move /Y \"{0}\" \"{1}\" && start \"\" \"{1}\"",
-            downloadedExe, currentExe);
-
-        try
-        {
-            Process.Start(new ProcessStartInfo("cmd.exe", args)
-            {
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                WindowStyle = ProcessWindowStyle.Hidden,
-            });
-        }
-        catch
-        {
-            // Couldn't even spawn the helper — stay running so the user can try the
-            // open-release-page link as a manual fallback.
-            return;
-        }
-
+        Relauncher.RelaunchAfterExit(currentExe, swapFromPath: downloadedExe);
         Application.Current.Shutdown();
     }
 }

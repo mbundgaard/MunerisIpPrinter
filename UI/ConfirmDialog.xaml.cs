@@ -24,6 +24,15 @@ public partial class ConfirmDialog : Window
         return dlg.ShowDialog() == true;
     }
 
+    /// <summary>Single-button info dialog — same chrome as <see cref="Ask"/> but hides the cancel button.</summary>
+    public static void Show(Window? owner, string title, string message, string ok = "OK")
+    {
+        var dlg = new ConfirmDialog(title, message, ok, ok);
+        dlg.CancelButton.Visibility = Visibility.Collapsed;
+        if (owner != null) dlg.Owner = owner;
+        dlg.ShowDialog();
+    }
+
     private void Confirm_Click(object sender, RoutedEventArgs e) { DialogResult = true; Close(); }
     private void Cancel_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
 }

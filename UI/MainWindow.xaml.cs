@@ -203,9 +203,8 @@ public partial class MainWindow : Window
         // instead of doing redundant work.
         if (!string.IsNullOrEmpty(_downloadedUpdatePath) && System.IO.File.Exists(_downloadedUpdatePath))
         {
-            MessageBox.Show(this,
-                "An update is already downloaded — click \"Update ready · restart\" at the bottom of the sidebar to install it.",
-                AppName, MessageBoxButton.OK, MessageBoxImage.Information);
+            ConfirmDialog.Show(this, "Update ready",
+                "An update is already downloaded — click \"Update ready · restart\" at the bottom of the sidebar to install it.");
             return;
         }
 
@@ -217,9 +216,8 @@ public partial class MainWindow : Window
             // null also covers offline/rate-limited; user will know which it is if they
             // just tried this and it failed for real.
             await Dispatcher.InvokeAsync(() =>
-                MessageBox.Show(this,
-                    $"You're running the latest version (v{CurrentVersion}).",
-                    AppName, MessageBoxButton.OK, MessageBoxImage.Information));
+                ConfirmDialog.Show(this, "Up to date",
+                    $"You're running the latest version (v{CurrentVersion})."));
             return;
         }
         await ApplyUpdateInfoAsync(info).ConfigureAwait(false);
@@ -721,16 +719,7 @@ public partial class MainWindow : Window
         // Environment.ProcessPath is .NET 6+; on net462 we use the entry assembly path.
         var exe = Assembly.GetEntryAssembly()?.Location;
         if (exe != null)
-        {
-            // Relaunch after a short delay so this instance fully exits and releases the port first.
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = $"/c timeout /t 2 /nobreak >nul & start \"\" \"{exe}\"",
-                CreateNoWindow = true,
-                UseShellExecute = false,
-            });
-        }
+            Relauncher.RelaunchAfterExit(exe);
         Application.Current.Shutdown();
     }
 }
