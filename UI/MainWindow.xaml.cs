@@ -160,14 +160,11 @@ public partial class MainWindow : Window
 
     private void UpdateLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        // If a fresh build is already downloaded, clicking applies + restarts.
+        // If a fresh build is already downloaded, clicking applies + restarts immediately.
+        // The link itself reads "Update ready · restart" so the action is already self-describing —
+        // no need for a separate yes/no confirm.
         if (!string.IsNullOrEmpty(_downloadedUpdatePath) && System.IO.File.Exists(_downloadedUpdatePath))
         {
-            var result = MessageBox.Show(this,
-                "Restart now to install the update?",
-                AppName, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
-            if (result != MessageBoxResult.Yes) return;
-
             var currentExe = Assembly.GetEntryAssembly()?.Location;
             if (string.IsNullOrEmpty(currentExe)) return;
             UpdateApplier.ApplyAndExit(_downloadedUpdatePath!, currentExe!);
