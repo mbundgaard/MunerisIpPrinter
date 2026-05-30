@@ -53,8 +53,9 @@ public static class UpdateChecker
 
             // Try to find the published .exe asset for this version so callers can
             // download it directly instead of sending the user to the release page.
-            // Convention: MunerisIpPrinter-<major>.<minor>.<build>.exe.
-            var assetName = $"MunerisIpPrinter-{latest.ToString(3)}.exe";
+            // Convention: MunerisIpPrinter-<version>.exe — Version.ToString() emits whatever
+            // components are present, so both legacy 1.0.4 and CalVer 2026.5.30.5 work.
+            var assetName = $"MunerisIpPrinter-{latest}.exe";
             var assetUrl = FindAssetDownloadUrl(json, assetName);
             return new UpdateInfo(latest, releaseUrl!, assetUrl);
         }
@@ -66,7 +67,7 @@ public static class UpdateChecker
     }
 
     private static Version Normalize(Version v)
-        => new(v.Major, v.Minor, Math.Max(0, v.Build));
+        => new(v.Major, v.Minor, Math.Max(0, v.Build), Math.Max(0, v.Revision));
 
     /// <summary>Finds the browser_download_url for the asset whose name matches <paramref name="assetName"/>.
     /// Walks the JSON looking for the "name":"X" pair, then the next browser_download_url after it.

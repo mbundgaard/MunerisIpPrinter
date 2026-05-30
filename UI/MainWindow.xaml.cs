@@ -21,7 +21,7 @@ public partial class MainWindow : Window
     private static readonly Version? CurrentVersion =
         Assembly.GetExecutingAssembly().GetName().Version;
     private static readonly string AppVersion =
-        CurrentVersion is { } v ? $"v{v.ToString(3)}" : "v?";
+        CurrentVersion is { } v ? $"v{v}" : "v?";
 
     private string? _updateUrl;
     private string? _downloadedUpdatePath;
@@ -158,7 +158,7 @@ public partial class MainWindow : Window
         var info = await UpdateChecker.CheckAsync(GitHubRepo, current).ConfigureAwait(false);
         if (info == null) return;
 
-        var versionStr = info.LatestVersion.ToString(3);
+        var versionStr = info.LatestVersion.ToString();
 
         // Phase 1: just-discovered. The link sends the user to the release page in case
         // they want to see the changelog while the download is still streaming.

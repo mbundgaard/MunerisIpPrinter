@@ -11,7 +11,7 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
         var v = Assembly.GetExecutingAssembly().GetName().Version;
-        VersionLabel.Text = v != null ? $"v{v.ToString(3)}" : "v?";
+        VersionLabel.Text = v != null ? $"v{v}" : "v?";
         GithubLink.NavigateUri = new Uri($"https://github.com/{githubRepo}");
     }
 
