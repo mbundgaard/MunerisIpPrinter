@@ -1,9 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using MunerisIpPrinter.Infrastructure;
 using MunerisIpPrinter.Models;
@@ -12,21 +15,36 @@ using MunerisIpPrinter.Services;
 namespace MunerisIpPrinter.UI;
 
 /// <summary>
-/// One printer's detail pane: receipt paper + chip strip. Owns no listener and no toolbar buttons —
-/// MainWindow drives <see cref="AddJob"/>, copy/reset, and which view is visible.
+/// One printer's detail pane: every receipt stacked newest-on-top inside a scroll view.
+/// MainWindow feeds receipts in via <see cref="AddJob"/>; copy is per-receipt (hover-revealed).
 /// </summary>
 public partial class PrinterView : UserControl
 {
+    private static readonly Brush ReceiptText = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+    private static readonly Brush MutedText = new SolidColorBrush(Color.FromRgb(0x60, 0x6B, 0x7A));
+    private static readonly Brush IconIdle = new SolidColorBrush(Color.FromRgb(0x9A, 0xA4, 0xB2));
+    private static readonly DropShadowEffect PaperShadow = new()
+    {
+        ShadowDepth = 3, BlurRadius = 22, Opacity = 0.7, Color = Colors.Black,
+    };
+
+    static PrinterView()
+    {
+        ReceiptText.Freeze();
+        MutedText.Freeze();
+        IconIdle.Freeze();
+        PaperShadow.Freeze();
+    }
+
     private readonly SlotStore _slotStore;
     private readonly int _slotKey;
     private readonly int _historyCount;
     private readonly ObservableCollection<PrintJob> _jobs = new();
     private int _sequence;
+    private double _paperWidth;
+    private double _logoMaxWidth;
 
     public PrinterConfig Config { get; }
-
-    /// <summary>Raised whenever the displayed receipt or job list changes — MainWindow uses it to refresh toolbar state.</summary>
-    public event EventHandler? StateChanged;
 
     public PrinterView(PrinterConfig config, SlotStore slotStore, int historyCount)
     {
@@ -36,25 +54,26 @@ public partial class PrinterView : UserControl
         _slotKey = IPAddress.Parse(config.Address).GetAddressBytes()[^1];
         _historyCount = historyCount;
 
-        JobList.ItemsSource = _jobs;
-        SizePaperTo40Cols();
+        ComputePaperDimensions();
 
         if (_historyCount > 0)
         {
             var saved = PrintHistory.Load(_slotStore, _slotKey).Take(_historyCount).ToList();
             if (saved.Count > 0)
             {
-                foreach (var job in saved) _jobs.Add(job); // already most-recent-first
+                foreach (var job in saved)
+                {
+                    _jobs.Add(job); // already most-recent-first
+                    ReceiptStack.Children.Add(BuildReceiptVisual(job));
+                }
                 _sequence = saved.Max(j => j.Sequence);
-                // nothing selected — the pane opens empty until the user picks a receipt
             }
         }
+
+        RefreshEmptyState();
     }
 
-    /// <summary>True when a receipt is currently rendered on the paper (Copy is meaningful).</summary>
-    public bool HasReceiptShown => PaperBorder.Visibility == Visibility.Visible;
-
-    /// <summary>True when this printer has any receipts in its chip list.</summary>
+    /// <summary>True when this printer has any receipts in its stack.</summary>
     public bool HasJobs => _jobs.Count > 0;
 
     /// <summary>Called by MainWindow when a receipt arrives for this printer's address.</summary>
@@ -62,106 +81,234 @@ public partial class PrinterView : UserControl
     {
         job.Sequence = ++_sequence;
         _jobs.Insert(0, job);
-        JobList.SelectedIndex = 0;
+        ReceiptStack.Children.Insert(0, BuildReceiptVisual(job));
 
-        // historyCount == 0 disables history: the receipt still shows for the session,
-        // but nothing is capped or persisted.
+        // historyCount == 0 disables persistence: the receipt still shows for the session,
+        // but nothing is capped or saved across runs.
         if (_historyCount > 0)
         {
             while (_jobs.Count > _historyCount)
+            {
                 _jobs.RemoveAt(_jobs.Count - 1);
+                ReceiptStack.Children.RemoveAt(ReceiptStack.Children.Count - 1);
+            }
             PrintHistory.Save(_slotStore, _slotKey, _jobs.ToList());
         }
 
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        // newest just appeared at index 0 — scroll the view back to the top so the user sees it
+        ReceiptScroll.ScrollToTop();
+        RefreshEmptyState();
     }
 
-    /// <summary>Wipes this printer's chip list and persisted history. Used by the global Reset.</summary>
+    /// <summary>Wipes this printer's chip list and persisted history.
+    /// The global Reset calls this on every PrinterView.</summary>
     public void ClearAllJobs()
     {
-        JobList.SelectedIndex = -1;
         _jobs.Clear();
+        ReceiptStack.Children.Clear();
         _sequence = 0;
         if (_historyCount > 0)
             PrintHistory.Save(_slotStore, _slotKey, Array.Empty<PrintJob>());
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        RefreshEmptyState();
     }
 
-    /// <summary>Deselects the current receipt and shows the empty pane again.</summary>
-    public void ClearSelection() => JobList.SelectedIndex = -1;
+    /// <summary>Scrolls the receipts view to the top (newest receipt). Bound to ESC in MainWindow.</summary>
+    public void ScrollToNewest() => ReceiptScroll.ScrollToTop();
 
-    private void SizePaperTo40Cols()
+    /// <summary>Copies the newest receipt's decoded text to the clipboard. Bound to Ctrl+Shift+C.</summary>
+    public void CopyNewestText()
     {
-        var typeface = new Typeface(TextView.FontFamily, TextView.FontStyle, TextView.FontWeight, TextView.FontStretch);
+        if (_jobs.Count == 0) return;
+        try { Clipboard.SetText(EscPosTextExtractor.Extract(_jobs[0].Data)); }
+        catch { /* clipboard transient errors are fine to swallow */ }
+    }
+
+    /// <summary>Copies the newest receipt as an image. Bound to Ctrl+C.</summary>
+    public void CopyNewestImage()
+    {
+        if (ReceiptStack.Children.Count == 0) return;
+        // each stack child is a wrapper StackPanel; the paper Border is its last child
+        if (ReceiptStack.Children[0] is not StackPanel wrapper) return;
+        var paper = FindPaper(wrapper);
+        if (paper == null) return;
+        CopyBorderAsImage(paper);
+    }
+
+    private static Border? FindPaper(StackPanel wrapper)
+    {
+        for (int i = wrapper.Children.Count - 1; i >= 0; i--)
+            if (wrapper.Children[i] is Border b && b.Background == Brushes.White) return b;
+        return null;
+    }
+
+    private void ComputePaperDimensions()
+    {
+        var typeface = new Typeface(new FontFamily("Consolas"),
+            FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
         var ft = new FormattedText(
             new string('0', 40),
             CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            typeface, TextView.FontSize, Brushes.Black, 1.0);
-        var col40 = ft.Width;
-        TextView.MinWidth = col40;
-        TextView.MaxWidth = col40;
-        LogoView.MaxWidth = col40 * 0.85; // small inset so centering reads visually
+            typeface, 11, Brushes.Black, 1.0);
+        _paperWidth = ft.Width;
+        _logoMaxWidth = _paperWidth * 0.85;
     }
 
-    private void JobList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void RefreshEmptyState()
     {
-        e.Handled = true;
+        bool any = _jobs.Count > 0;
+        ReceiptScroll.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        EmptyHint.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
+    }
 
-        if (JobList.SelectedItem is not PrintJob job)
+    /// <summary>Builds one receipt's stacked visual: small header (seq · time), hover-revealed
+    /// copy strip, then the white paper.</summary>
+    private UIElement BuildReceiptVisual(PrintJob job)
+    {
+        var headerText = job.ReceivedAt.ToString("HH:mm:ss");
+        var header = new TextBlock
         {
-            PaperBorder.Visibility = Visibility.Collapsed;
-            EmptyHint.Visibility = Visibility.Visible;
-            StateChanged?.Invoke(this, EventArgs.Empty);
-            return;
-        }
+            Text = headerText,
+            Foreground = MutedText,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 10,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 0, 4),
+        };
 
-        PaperBorder.Visibility = Visibility.Visible;
-        EmptyHint.Visibility = Visibility.Collapsed;
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        // hover-revealed copy buttons, right-aligned, sit in the same row as the header
+        var copyText = MakeIconButton("", "Copy receipt text");
+        var copyImage = MakeIconButton("", "Copy receipt as image");
+        var copyStrip = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 0, 0, 4),
+            Visibility = Visibility.Hidden,
+        };
+        copyStrip.Children.Add(copyText);
+        copyStrip.Children.Add(copyImage);
 
-        TextView.Text = EscPosTextExtractor.Extract(job.Data);
+        var headerRow = new Grid();
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(header, 0);
+        Grid.SetColumn(copyStrip, 1);
+        headerRow.Children.Add(header);
+        headerRow.Children.Add(copyStrip);
 
+        var contentStack = new StackPanel();
         if (LogoBitmap.StreamReferencesLogo(job.Data))
         {
             var bmp = LogoBitmap.FromSlotBytes(_slotStore.Read(_slotKey));
-            LogoView.Source = bmp;
-            LogoView.Visibility = bmp != null ? Visibility.Visible : Visibility.Collapsed;
+            if (bmp != null)
+            {
+                var logoImage = new Image
+                {
+                    Source = bmp,
+                    Stretch = Stretch.Uniform,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    MaxWidth = _logoMaxWidth,
+                    Margin = new Thickness(0, 0, 0, 12),
+                };
+                RenderOptions.SetBitmapScalingMode(logoImage, BitmapScalingMode.HighQuality);
+                contentStack.Children.Add(logoImage);
+            }
         }
-        else
+
+        var textBox = new TextBox
         {
-            LogoView.Source = null;
-            LogoView.Visibility = Visibility.Collapsed;
-        }
+            Text = EscPosTextExtractor.Extract(job.Data),
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 11,
+            IsReadOnly = true,
+            BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
+            Foreground = ReceiptText,
+            TextWrapping = TextWrapping.NoWrap,
+            Padding = new Thickness(0),
+            MinWidth = _paperWidth,
+            MaxWidth = _paperWidth,
+        };
+        TextOptions.SetTextFormattingMode(textBox, TextFormattingMode.Display);
+        contentStack.Children.Add(textBox);
+
+        var paper = new Border
+        {
+            Background = Brushes.White,
+            CornerRadius = new CornerRadius(1),
+            Padding = new Thickness(22, 28, 22, 28),
+            Effect = PaperShadow,
+            Child = contentStack,
+        };
+
+        var wrapper = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 24),
+        };
+        wrapper.Children.Add(headerRow);
+        wrapper.Children.Add(paper);
+
+        copyText.Click += (_, _) => { try { Clipboard.SetText(textBox.Text); } catch { } };
+        copyImage.Click += (_, _) => CopyBorderAsImage(paper);
+
+        wrapper.MouseEnter += (_, _) => copyStrip.Visibility = Visibility.Visible;
+        wrapper.MouseLeave += (_, _) => copyStrip.Visibility = Visibility.Hidden;
+
+        return wrapper;
     }
 
-    /// <summary>Copies the currently-shown receipt to the clipboard as an image. No-op if no receipt is shown.</summary>
-    public async void CopySelectedReceipt()
+    private static Button MakeIconButton(string glyph, string tooltip) => new()
     {
-        if (!HasReceiptShown) return;
+        Content = glyph,
+        FontFamily = new FontFamily("Segoe MDL2 Assets"),
+        FontSize = 13,
+        Background = Brushes.Transparent,
+        BorderThickness = new Thickness(0),
+        Foreground = IconIdle,
+        Padding = new Thickness(6, 3, 6, 3),
+        Cursor = Cursors.Hand,
+        ToolTip = tooltip,
+        Focusable = false,
+    };
 
-        int w = (int)Math.Ceiling(PaperBorder.ActualWidth);
-        int h = (int)Math.Ceiling(PaperBorder.ActualHeight);
+    /// <summary>Renders the white receipt paper to a bitmap and publishes it as both
+    /// CF_BITMAP and PNG so any paste target (Paint, Word, Slack, browsers) picks a format it knows.</summary>
+    private async void CopyBorderAsImage(Border paper)
+    {
+        int w = (int)Math.Ceiling(paper.ActualWidth);
+        int h = (int)Math.Ceiling(paper.ActualHeight);
         if (w <= 0 || h <= 0) return;
 
         const double scale = 2.0;
-        var savedEffect = PaperBorder.Effect;
-        PaperBorder.Effect = null; // drop the drop-shadow from the copied image
-        PaperBorder.UpdateLayout();
+        var savedEffect = paper.Effect;
+        paper.Effect = null; // drop the drop-shadow from the copied image
+        paper.UpdateLayout();
 
         var rtb = new RenderTargetBitmap(
             (int)(w * scale), (int)(h * scale),
             96 * scale, 96 * scale, PixelFormats.Pbgra32);
         var dv = new DrawingVisual();
         using (var dc = dv.RenderOpen())
-            dc.DrawRectangle(new VisualBrush(PaperBorder), null, new Rect(0, 0, w, h));
+            dc.DrawRectangle(new VisualBrush(paper), null, new Rect(0, 0, w, h));
         rtb.Render(dv);
         rtb.Freeze();
 
-        PaperBorder.Effect = savedEffect;
+        paper.Effect = savedEffect;
+
+        var pngStream = new MemoryStream();
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(rtb));
+        encoder.Save(pngStream);
+        pngStream.Position = 0;
+
+        var data = new DataObject();
+        data.SetImage(rtb);
+        data.SetData("PNG", pngStream);
 
         for (int attempt = 0; attempt < 3; attempt++)
         {
-            try { Clipboard.SetImage(rtb); return; }
+            try { Clipboard.SetDataObject(data, copy: true); return; }
             catch { await Task.Delay(60); }
         }
     }

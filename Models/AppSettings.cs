@@ -47,9 +47,27 @@ public sealed class AppSettings
     [JsonPropertyName("historyCount")]
     public int HistoryCount { get; set; } = DefaultHistoryCount;
 
+    /// <summary>Width of the left sidebar in DIPs. Persisted across runs and clamped on load.</summary>
+    [JsonPropertyName("sidebarWidth")]
+    public double SidebarWidth { get; set; } = DefaultSidebarWidth;
+
+    /// <summary>Last main-window size in DIPs. Persisted on close and clamped on load.</summary>
+    [JsonPropertyName("windowWidth")]
+    public double WindowWidth { get; set; } = DefaultWindowWidth;
+
+    [JsonPropertyName("windowHeight")]
+    public double WindowHeight { get; set; } = DefaultWindowHeight;
+
     public const int DefaultHistoryCount = 0;
     public const int MaxHistoryCount = 200;
-    public const int MaxPrinters = 6;
+    public const int MaxPrinters = 15;
+    public const double DefaultSidebarWidth = 200;
+    public const double MinSidebarWidth = 140;
+    public const double MaxSidebarWidth = 480;
+    public const double DefaultWindowWidth = 720;
+    public const double DefaultWindowHeight = 720;
+    public const double MinWindowWidth = 500;
+    public const double MinWindowHeight = 400;
 
     public static string FilePath =>
         Path.Combine(AppContext.BaseDirectory, "MunerisIpPrinter.json");
@@ -83,6 +101,9 @@ public sealed class AppSettings
                 {
                     loaded.AssignAddresses();
                     loaded.HistoryCount = ClampHistoryCount(loaded.HistoryCount);
+                    loaded.SidebarWidth = ClampSidebarWidth(loaded.SidebarWidth);
+                    loaded.WindowWidth = ClampWindowDim(loaded.WindowWidth, DefaultWindowWidth, MinWindowWidth);
+                    loaded.WindowHeight = ClampWindowDim(loaded.WindowHeight, DefaultWindowHeight, MinWindowHeight);
                     return loaded;
                 }
             }
@@ -106,6 +127,16 @@ public sealed class AppSettings
     /// <summary>0 = disabled; anything above <see cref="MaxHistoryCount"/> is capped; negatives → 0.</summary>
     public static int ClampHistoryCount(int value)
         => Math.Clamp(value, 0, MaxHistoryCount);
+
+    /// <summary>Bounds the persisted sidebar width; falls back to the default if NaN/zero.</summary>
+    public static double ClampSidebarWidth(double value)
+        => double.IsNaN(value) || value <= 0 ? DefaultSidebarWidth
+           : Math.Clamp(value, MinSidebarWidth, MaxSidebarWidth);
+
+    /// <summary>Floors a window dimension at <paramref name="min"/>; falls back to <paramref name="fallback"/> on NaN/zero.
+    /// No upper clamp — the user might run on an ultrawide and that's their call.</summary>
+    public static double ClampWindowDim(double value, double fallback, double min)
+        => double.IsNaN(value) || value <= 0 ? fallback : Math.Max(value, min);
 
     public void Save()
     {

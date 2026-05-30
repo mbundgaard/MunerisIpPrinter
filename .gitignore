@@ -7,3 +7,6 @@ obj/
 MunerisIpPrinter.json
 MunerisIpPrinter.bin
 *.log
+
+# Mockups/screenshots shared during design — not project source
+references/

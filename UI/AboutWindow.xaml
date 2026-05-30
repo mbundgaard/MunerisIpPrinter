@@ -1,0 +1,84 @@
+<Window x:Class="MunerisIpPrinter.UI.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About"
+        Icon="/assets/app.ico"
+        Width="400" Height="370"
+        Background="#040D1A"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" HorizontalAlignment="Center">
+            <TextBlock x:Name="AboutTitleText" Text="Muneris" Foreground="#3A6FB8"
+                       FontFamily="/assets/#Conthrax" FontSize="42"
+                       HorizontalAlignment="Center"/>
+            <Viewbox Stretch="Uniform"
+                     Width="{Binding ElementName=AboutTitleText, Path=ActualWidth}"
+                     Margin="0,2,0,6">
+                <TextBlock Text="Software Development &amp; Consulting"
+                           Foreground="#8B97A8"
+                           FontFamily="Segoe UI" FontSize="13"/>
+            </Viewbox>
+            <Border Height="1" Background="#244065"
+                    Width="{Binding ElementName=AboutTitleText, Path=ActualWidth}"
+                    HorizontalAlignment="Center"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,18,0,0">
+            <TextBlock x:Name="AppTitleLabel" Text="Muneris IP Printer"
+                       Foreground="#E0E5EE"
+                       FontFamily="Segoe UI" FontWeight="SemiBold" FontSize="15"
+                       HorizontalAlignment="Center"/>
+            <TextBlock x:Name="VersionLabel"
+                       Foreground="#7C8696"
+                       FontFamily="Segoe UI" FontSize="12"
+                       HorizontalAlignment="Center"
+                       Margin="0,2,0,0"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="2"
+                   Text="A free, open-source ESC/POS sink for IT admins, testers, and integrators. Stand in for up to fifteen receipt printers on loopback IPs and validate POS prints on screen — no hardware needed."
+                   Foreground="#9AA4B2"
+                   FontFamily="Segoe UI" FontSize="12"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"
+                   Margin="0,20,0,0"/>
+
+        <StackPanel Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Bottom">
+            <TextBlock HorizontalAlignment="Center" Margin="0,0,0,4">
+                <Hyperlink x:Name="GithubLink" Click="Link_Click"
+                           Foreground="#3A6FB8" TextDecorations="None">
+                    <Run Text="GitHub repository"/>
+                </Hyperlink>
+            </TextBlock>
+            <TextBlock HorizontalAlignment="Center" Margin="0,0,0,4">
+                <Hyperlink x:Name="WebsiteLink" Click="Link_Click"
+                           NavigateUri="https://muneris.dk"
+                           Foreground="#3A6FB8" TextDecorations="None">
+                    <Run Text="muneris.dk"/>
+                </Hyperlink>
+            </TextBlock>
+            <TextBlock Text="MIT licensed &#x00B7; &#xA9; 2026 Muneris"
+                       Foreground="#606B7A"
+                       FontFamily="Segoe UI" FontSize="11"
+                       HorizontalAlignment="Center"
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <Button Grid.Row="4" Content="Close" Click="Close_Click"
+                Style="{StaticResource CopyButtonStyle}"
+                Padding="18,6"
+                HorizontalAlignment="Center"
+                Margin="0,16,0,0"
+                IsDefault="True" IsCancel="True"/>
+    </Grid>
+</Window>

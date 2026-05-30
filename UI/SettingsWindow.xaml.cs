@@ -67,12 +67,11 @@ public partial class SettingsWindow : Window
             ? AppSettings.ClampHistoryCount(n)
             : AppSettings.DefaultHistoryCount;
 
-        var settings = new AppSettings
-        {
-            Printers = _printers.ToList(),
-            LoggingEnabled = LoggingCheck.IsChecked == true,
-            HistoryCount = historyCount,
-        };
+        // Load-then-mutate so fields the dialog doesn't touch (sidebar width, future additions) survive.
+        var settings = AppSettings.Load();
+        settings.Printers = _printers.ToList();
+        settings.LoggingEnabled = LoggingCheck.IsChecked == true;
+        settings.HistoryCount = historyCount;
         try
         {
             settings.Save();

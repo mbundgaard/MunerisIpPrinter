@@ -59,6 +59,39 @@
         </Grid>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer.Resources>
+                <!-- Minimal scrollbar: a 5px-wide tinted thumb only, no track buttons.
+                     Auto visibility on the host ScrollViewer means it only shows when content overflows. -->
+                <Style TargetType="ScrollBar">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Width" Value="5"/>
+                    <Setter Property="MinWidth" Value="5"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ScrollBar">
+                                <Grid Background="{TemplateBinding Background}">
+                                    <Track Name="PART_Track" IsDirectionReversed="True"
+                                           ViewportSize="{TemplateBinding ViewportSize}"
+                                           Maximum="{TemplateBinding Maximum}"
+                                           Minimum="{TemplateBinding Minimum}"
+                                           Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                        <Track.Thumb>
+                                            <Thumb>
+                                                <Thumb.Template>
+                                                    <ControlTemplate TargetType="Thumb">
+                                                        <Border Background="#3A6FB8" CornerRadius="2"
+                                                                Opacity="0.55" Margin="0,2"/>
+                                                    </ControlTemplate>
+                                                </Thumb.Template>
+                                            </Thumb>
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ScrollViewer.Resources>
             <ItemsControl x:Name="PrinterList">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
