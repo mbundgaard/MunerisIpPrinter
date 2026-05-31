@@ -675,6 +675,14 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
+    /// <summary>Puts the GitHub repo URL on the clipboard so the user can paste it into a
+    /// chat (Teams / Meet / Slack) during a demo without alt-tabbing to a browser.</summary>
+    private void CopyShareLink_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText($"https://github.com/{GitHubRepo}"); }
+        catch { /* clipboard occasionally unavailable; user can retry */ }
+    }
+
     private void AboutMenu_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new AboutWindow(GitHubRepo) { Owner = this };
@@ -713,6 +721,14 @@ public partial class MainWindow : Window
             };
             check.Click += CheckForUpdatesMenu_Click;
 
+            var share = new MenuItem
+            {
+                Header = "Copy share link",
+                Icon = MenuIcon(""),
+                Style = itemStyle,
+            };
+            share.Click += CopyShareLink_Click;
+
             var about = new MenuItem
             {
                 Header = "About",
@@ -725,6 +741,7 @@ public partial class MainWindow : Window
             menu.Items.Add(clear);
             menu.Items.Add(settings);
             menu.Items.Add(check);
+            menu.Items.Add(share);
             menu.Items.Add(about);
             btn.ContextMenu = menu;
         }
