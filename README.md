@@ -5,7 +5,7 @@ receipt on screen instead of on paper. Useful for setting up, debugging, or
 demoing a POS deployment without wiring up real thermal printers.
 
 <p align="center">
-  <img src="screenshots/Main.PNG" width="720" alt="Main window — sidebar with three printers, a rendered receipt, and the auto-update link"/>
+  <img src="images/Main.PNG" width="720" alt="Main window — sidebar with three printers, a rendered receipt, and the auto-update link"/>
 </p>
 
 ## What it's for
@@ -61,7 +61,7 @@ the app, the new build takes over automatically. See
 Open the hamburger menu in the bottom-left of the sidebar and pick **Settings**.
 
 <p align="center">
-  <img src="screenshots/Settings.PNG" width="540" alt="Settings dialog with three printers and a history setting"/>
+  <img src="images/Settings.PNG" width="540" alt="Settings dialog with three printers and a history setting"/>
 </p>
 
 - **Printers** — add up to 15. Each entry is automatically assigned the next
@@ -160,7 +160,7 @@ For anyone reading the source:
 ## About
 
 <p align="center">
-  <img src="screenshots/About.PNG" width="380" alt="About dialog"/>
+  <img src="images/About.PNG" width="380" alt="About dialog"/>
 </p>
 
 Built and maintained by **[Muneris](https://muneris.dk)** — software
