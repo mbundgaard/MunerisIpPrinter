@@ -27,6 +27,11 @@ public sealed class PrintListener
     public event EventHandler<PrintJob>? JobReceived;
     public event EventHandler<string>? StatusChanged;
 
+    /// <summary>Raised on every TCP accept, with the local loopback address the connection
+    /// came in on. Lets the UI flash a "traffic" indicator even for connections that don't
+    /// end up emitting a printable receipt (POS status pings, half-open probes, etc.).</summary>
+    public event EventHandler<string>? ConnectionActivity;
+
     public int Port => _port;
 
     public PrintListener(int port, IEnumerable<IPAddress> addresses, SlotStore slotStore, JobLog? log = null)
@@ -121,6 +126,7 @@ public sealed class PrintListener
         var addrBytes = localAddr.GetAddressBytes();
         int slotKey = addrBytes[addrBytes.Length - 1]; // loopback last octet — the per-tab logo slot key
         _log?.Line($"connected {remote} -> {localAddrStr}");
+        ConnectionActivity?.Invoke(this, localAddrStr);
 
         var reqMs = new MemoryStream();
         var respMs = new MemoryStream();

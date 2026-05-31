@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using MunerisIpPrinter.Infrastructure;
@@ -82,7 +83,9 @@ public partial class PrinterView : UserControl
     {
         job.Sequence = ++_sequence;
         _jobs.Insert(0, job);
-        ReceiptStack.Children.Insert(0, BuildReceiptVisual(job));
+        var visual = BuildReceiptVisual(job);
+        ReceiptStack.Children.Insert(0, visual);
+        AnimateArrival(visual);
 
         // historyCount == 0 disables persistence: the receipt still shows for the session,
         // but nothing is capped or saved across runs.
@@ -99,6 +102,23 @@ public partial class PrinterView : UserControl
         // newest just appeared at index 0 — scroll the view back to the top so the user sees it
         ReceiptScroll.ScrollToTop();
         RefreshEmptyState();
+    }
+
+    /// <summary>Slides the new receipt into view from above with a quick fade.
+    /// Cheap visual cue that something just landed — no glow, no shadow tricks.</summary>
+    private static void AnimateArrival(UIElement visual)
+    {
+        var translate = new TranslateTransform { Y = -24 };
+        visual.RenderTransform = translate;
+        visual.Opacity = 0;
+
+        var ease = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        var duration = TimeSpan.FromMilliseconds(220);
+
+        translate.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation { From = -24, To = 0, Duration = duration, EasingFunction = ease });
+        visual.BeginAnimation(UIElement.OpacityProperty,
+            new DoubleAnimation { From = 0, To = 1, Duration = duration, EasingFunction = ease });
     }
 
     /// <summary>Wipes this printer's chip list and persisted history.

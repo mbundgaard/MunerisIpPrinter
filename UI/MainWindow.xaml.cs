@@ -71,6 +71,7 @@ public partial class MainWindow : Window
         _listener = new PrintListener(Port, loopbackAddresses, slotStore, _log);
         _listener.JobReceived += OnJobReceived;
         _listener.StatusChanged += OnStatusChanged;
+        _listener.ConnectionActivity += OnConnectionActivity;
 
         foreach (var cfg in settings.Printers)
         {
@@ -275,10 +276,18 @@ public partial class MainWindow : Window
         public required TextBlock Name { get; init; }
         public required Border Badge { get; init; }
         public required TextBlock BadgeText { get; init; }
+        public required System.Windows.Shapes.Ellipse Heartbeat { get; init; }
         public int Unviewed { get; set; }
     }
 
+    private static readonly Brush HeartbeatFill = new SolidColorBrush(Color.FromRgb(0x3A, 0x6F, 0xB8));
+
     private static readonly Brush BadgeFill = new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D));
+
+    static MainWindow()
+    {
+        HeartbeatFill.Freeze();
+    }
 
     private SidebarItem BuildSidebarItem(PrinterView view)
     {
@@ -404,20 +413,37 @@ public partial class MainWindow : Window
         {
             Orientation = Orientation.Vertical,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(12, 0, 8, 0),
+            Margin = new Thickness(4, 0, 8, 0),
         };
         labelStack.Children.Add(nameSlot);
         labelStack.Children.Add(address);
 
+        // Heartbeat: tiny dot that pulses on every accepted TCP connection so the user can
+        // see the POS is actually talking to this loopback address (even before a full
+        // receipt arrives). Hidden at rest; PulseHeartbeat animates Opacity 1 -> 0.
+        var heartbeat = new System.Windows.Shapes.Ellipse
+        {
+            Width = 6,
+            Height = 6,
+            Fill = HeartbeatFill,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            Opacity = 0,
+            IsHitTestVisible = false,
+        };
+
         var contentGrid = new Grid();
+        contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         // rename sits between name and badge so the badge column anchors to the right edge
         // and doesn't jump when the pencil shows/hides on hover.
-        Grid.SetColumn(labelStack, 0);
-        Grid.SetColumn(rename, 1);
-        Grid.SetColumn(badge, 2);
+        Grid.SetColumn(heartbeat, 0);
+        Grid.SetColumn(labelStack, 1);
+        Grid.SetColumn(rename, 2);
+        Grid.SetColumn(badge, 3);
+        contentGrid.Children.Add(heartbeat);
         contentGrid.Children.Add(labelStack);
         contentGrid.Children.Add(rename);
         contentGrid.Children.Add(badge);
@@ -460,6 +486,7 @@ public partial class MainWindow : Window
             Name = name,
             Badge = badge,
             BadgeText = badgeText,
+            Heartbeat = heartbeat,
         };
     }
 
@@ -562,6 +589,37 @@ public partial class MainWindow : Window
 
     private void OnStatusChanged(object? sender, string status)
         => Dispatcher.Invoke(() => _log?.Line(status));
+
+    /// <summary>Fires the heartbeat pulse on whichever printer's row matches the incoming
+    /// connection's loopback address. Skips silently when the address is unconfigured.</summary>
+    private void OnConnectionActivity(object? sender, string localAddr)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_byAddress.TryGetValue(localAddr, out var view)
+                && _sidebarItems.TryGetValue(view, out var item))
+            {
+                PulseHeartbeat(item.Heartbeat);
+            }
+        }));
+    }
+
+    /// <summary>Restarts the dot's opacity fade. Each call overrides any in-flight animation,
+    /// so back-to-back connections just keep the dot lit.</summary>
+    private static void PulseHeartbeat(System.Windows.Shapes.Ellipse dot)
+    {
+        var anim = new System.Windows.Media.Animation.DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.0,
+            Duration = TimeSpan.FromMilliseconds(1500),
+            EasingFunction = new System.Windows.Media.Animation.QuadraticEase
+            {
+                EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn,
+            },
+        };
+        dot.BeginAnimation(UIElement.OpacityProperty, anim);
+    }
 
     private void SelectAt(int index)
     {
