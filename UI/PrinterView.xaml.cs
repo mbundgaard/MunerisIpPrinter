@@ -266,6 +266,10 @@ public partial class PrinterView : UserControl
         {
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 24),
+            // Transparent (not null) background makes the whole wrapper bounding box
+            // hit-testable, so moving from the paper up to the copy strip doesn't cross a
+            // dead gap that fires MouseLeave and hides the buttons before they can be clicked.
+            Background = Brushes.Transparent,
         };
         wrapper.Children.Add(headerRow);
         wrapper.Children.Add(paper);
