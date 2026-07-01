@@ -312,7 +312,9 @@ public static class EscPosRenderer
                     if (((b >> (7 - bit)) & 1) != 0) pixels[outBase + bit] = 0;
             }
         }
-        var bmp = BitmapSource.Create(width, height, 96, 96, PixelFormats.Gray8, null, pixels, width);
+        // 203 DPI = typical Epson thermal head; makes raster width settle at the
+        // paper column's physical scale instead of 2× wider (see PrinterView paper sizing).
+        var bmp = BitmapSource.Create(width, height, 203, 203, PixelFormats.Gray8, null, pixels, width);
         bmp.Freeze();
         return bmp;
     }

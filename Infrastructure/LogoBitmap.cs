@@ -51,7 +51,9 @@ public static class LogoBitmap
             }
         }
 
-        return BitmapSource.Create(width, height, 96, 96, PixelFormats.Gray8, null, pixels, width);
+        // 203 DPI matches typical Epson thermal head resolution — matches raster
+        // width to the on-screen paper column instead of rendering ~2× too wide.
+        return BitmapSource.Create(width, height, 203, 203, PixelFormats.Gray8, null, pixels, width);
     }
 
     public static bool StreamReferencesLogo(byte[] data)

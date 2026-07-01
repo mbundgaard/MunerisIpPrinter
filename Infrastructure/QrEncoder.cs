@@ -477,7 +477,10 @@ public static class QrEncoder
             }
         }
 
-        var bmp = BitmapSource.Create(pixWidth, pixHeight, 96, 96, PixelFormats.Gray8, null, pixels, pixWidth);
+        // 203 DPI matches typical Epson thermal head resolution, so a full-width
+        // raster (576 dots) renders at ~272 DIPs — the same physical scale as the
+        // 40-col text column instead of 2× bigger like it would at 96 DPI.
+        var bmp = BitmapSource.Create(pixWidth, pixHeight, 203, 203, PixelFormats.Gray8, null, pixels, pixWidth);
         bmp.Freeze();
         return bmp;
     }
