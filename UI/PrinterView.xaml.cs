@@ -217,41 +217,34 @@ public partial class PrinterView : UserControl
         headerRow.Children.Add(header);
         headerRow.Children.Add(copyStrip);
 
-        var contentStack = new StackPanel();
-        if (LogoBitmap.StreamReferencesLogo(job.Data))
-        {
-            var bmp = LogoBitmap.FromSlotBytes(_slotStore.Read(_slotKey));
-            if (bmp != null)
-            {
-                var logoImage = new Image
-                {
-                    Source = bmp,
-                    Stretch = Stretch.Uniform,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    MaxWidth = _logoMaxWidth,
-                    Margin = new Thickness(0, 0, 0, 12),
-                };
-                RenderOptions.SetBitmapScalingMode(logoImage, BitmapScalingMode.HighQuality);
-                contentStack.Children.Add(logoImage);
-            }
-        }
+        // EscPosRenderer builds a fully-styled FlowDocument (bold, alignment, size, underline,
+        // reverse, inline raster bitmaps, stored logos via GS /, and QR codes via GS ( k). The
+        // separate LogoView from the previous design is gone — inline images live in the
+        // FlowDocument at the correct paragraph position now.
+        var doc = EscPosRenderer.Render(job.Data, _slotStore, _slotKey);
 
-        var textBox = new TextBox
+        var richText = new RichTextBox
         {
-            Text = EscPosTextExtractor.Extract(job.Data),
+            Document = doc,
             FontFamily = new FontFamily("Consolas"),
             FontSize = 11,
             IsReadOnly = true,
+            IsReadOnlyCaretVisible = false,
+            IsDocumentEnabled = false,
             BorderThickness = new Thickness(0),
             Background = Brushes.Transparent,
             Foreground = ReceiptText,
-            TextWrapping = TextWrapping.NoWrap,
             Padding = new Thickness(0),
             MinWidth = _paperWidth,
             MaxWidth = _paperWidth,
+            Focusable = false,
         };
-        TextOptions.SetTextFormattingMode(textBox, TextFormattingMode.Display);
-        contentStack.Children.Add(textBox);
+        richText.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+        richText.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
+        TextOptions.SetTextFormattingMode(richText, TextFormattingMode.Display);
+
+        var contentStack = new StackPanel();
+        contentStack.Children.Add(richText);
 
         var paper = new Border
         {
@@ -274,7 +267,9 @@ public partial class PrinterView : UserControl
         wrapper.Children.Add(headerRow);
         wrapper.Children.Add(paper);
 
-        copyText.Click += (_, _) => { try { Clipboard.SetText(textBox.Text); } catch { } };
+        // Plain-text copy still uses EscPosTextExtractor — the FlowDocument is for display only.
+        var plainText = EscPosTextExtractor.Extract(job.Data);
+        copyText.Click += (_, _) => { try { Clipboard.SetText(plainText); } catch { } };
         copyImage.Click += (_, _) => CopyBorderAsImage(paper);
 
         wrapper.MouseEnter += (_, _) => copyStrip.Visibility = Visibility.Visible;
