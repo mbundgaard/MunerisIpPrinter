@@ -45,6 +45,12 @@ public partial class PrinterView : UserControl
     private double _paperWidth;
     private double _logoMaxWidth;
 
+    // A RichTextBox forcibly rewrites its hosted FlowDocument's PagePadding to {5,0,5,0} on
+    // measure, regardless of what we set on the document. That 10px of horizontal inset shrinks
+    // the usable text region, wrapping the last ~2 chars of a full 40-char line. We add it back
+    // to the box width so the text area itself equals _paperWidth (40 chars).
+    private const double RichTextHostPadding = 10;
+
     public PrinterConfig Config { get; }
 
     public PrinterView(PrinterConfig config, SlotStore slotStore, int historyCount)
@@ -166,10 +172,12 @@ public partial class PrinterView : UserControl
     {
         var typeface = new Typeface(new FontFamily("Consolas"),
             FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        // Measure in Display formatting mode to match the RichTextBox (TextOptions.SetTextFormattingMode
+        // = Display below), so 40 chars measure at the same per-glyph advance the box renders them with.
         var ft = new FormattedText(
             new string('0', 40),
             CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            typeface, 11, Brushes.Black, 1.0);
+            typeface, 11, Brushes.Black, null, TextFormattingMode.Display, 1.0);
         _paperWidth = ft.Width;
         _logoMaxWidth = _paperWidth * 0.85;
     }
@@ -235,8 +243,9 @@ public partial class PrinterView : UserControl
             Background = Brushes.Transparent,
             Foreground = ReceiptText,
             Padding = new Thickness(0),
-            MinWidth = _paperWidth,
-            MaxWidth = _paperWidth,
+            // +host padding so the text region (not the box) equals _paperWidth's 40 chars.
+            MinWidth = _paperWidth + RichTextHostPadding,
+            MaxWidth = _paperWidth + RichTextHostPadding,
             Focusable = false,
         };
         richText.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled);
