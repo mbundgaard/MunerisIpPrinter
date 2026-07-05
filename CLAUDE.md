@@ -48,7 +48,8 @@ auto-update swaps. The version is embedded in the assembly only.
   self-describing plaintext guide listing the live printers + the send/fetch loop), `GET /printers`,
   `GET /latest?printer=N` (PNG of that instance's newest receipt paper only — reuses
   `PrinterView.RenderNewestReceiptPng` → `RenderBorder`), `GET /latest.txt?printer=N`
-  (`EscPosTextExtractor`), `GET /screenshot` (whole window), `POST /clear` (clear all receipts, or
+  (`EscPosTextExtractor`), `GET /latest.hex?printer=N` (exact received bytes as space-separated
+  hex), `GET /screenshot` (whole window), `POST /clear` (clear all receipts, or
   `?printer=N` for one — live, no restart), and `POST /printers/add|rename|remove`
   which save `AppSettings` then `RestartToApply()` (no live reload — same restart path as the
   Settings dialog). `MainWindow` implements `IApiHost`; the server marshals every host call onto the

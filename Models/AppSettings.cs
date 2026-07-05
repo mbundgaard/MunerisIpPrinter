@@ -83,21 +83,25 @@ public sealed class AppSettings
     public const double MinWindowHeight = 400;
     public const int DefaultCodePageValue = 437;
 
-    /// <summary>Code pages offered in the Settings dropdown, in display order. Values are .NET code
-    /// page numbers (net462 ships every one of these in-box). The Cyrillic trio (866/1251/855) mirrors
-    /// what a BIXOLON SRP-S300 supports via <c>ESC t</c> 17/28/36.</summary>
+    /// <summary>Code pages offered in the Settings dropdown, in display order (grouped: Western, Central
+    /// Europe, Cyrillic, Greek, Turkish). Values are .NET code page numbers (net462 ships every one
+    /// in-box). All are also reachable in-stream via <c>ESC t</c> — see the map in EscPosRenderer /
+    /// EscPosTextExtractor (the Cyrillic trio 866/1251/855 = BIXOLON pages 17/28/36).</summary>
     public static readonly CodePageOption[] CodePages =
     {
         new(437,  "PC437 — USA / Standard"),
-        new(850,  "PC850 — Multilingual (Latin-1)"),
-        new(852,  "PC852 — Latin-2 (Central Europe)"),
+        new(850,  "PC850 — Multilingual (Western Europe)"),
         new(858,  "PC858 — Multilingual + Euro"),
         new(1252, "WPC1252 — Windows Latin-1"),
+        new(852,  "PC852 — Latin-2 (Central Europe)"),
+        new(1250, "WPC1250 — Central European (Windows)"),
         new(866,  "PC866 — Cyrillic (DOS / IBM866)"),
         new(1251, "WPC1251 — Cyrillic (Windows-1251)"),
         new(855,  "PC855 — Cyrillic (DOS)"),
-        new(737,  "PC737 — Greek"),
-        new(857,  "PC857 — Turkish"),
+        new(737,  "PC737 — Greek (DOS)"),
+        new(1253, "WPC1253 — Greek (Windows)"),
+        new(857,  "PC857 — Turkish (DOS)"),
+        new(1254, "WPC1254 — Turkish (Windows)"),
     };
 
     // Settings live alongside logos and receipt history in MunerisIpPrinter.bin.

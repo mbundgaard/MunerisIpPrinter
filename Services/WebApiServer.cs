@@ -31,6 +31,7 @@ public interface IApiHost
     IReadOnlyList<ApiPrinter> ListPrinters();
     byte[]? RenderLatestPng(int number);
     string? LatestText(int number);
+    string? LatestHex(int number);
 
     /// <summary>Clears receipts live (no restart). <paramref name="number"/> 0 = all printers.</summary>
     string ClearReceipts(int number);
@@ -103,6 +104,7 @@ public sealed class WebApiServer : IDisposable
                 case "/printers":         SendPrinters(ctx); break;
                 case "/latest":           await SendLatestPngAsync(ctx).ConfigureAwait(false); break;
                 case "/latest.txt":       SendLatestText(ctx); break;
+                case "/latest.hex":       SendLatestHex(ctx); break;
                 case "/screenshot":       await SendScreenshotAsync(ctx).ConfigureAwait(false); break;
                 case "/clear":            HandleAction(ctx, h => h.ClearReceipts(OptionalInt(ctx, "printer", 0))); break;
                 case "/printers/add":     HandleMutation(ctx, h => h.AddPrinter(Query(ctx, "name"))); break;
@@ -152,6 +154,7 @@ public sealed class WebApiServer : IDisposable
         sb.AppendLine("  2. Open a TCP connection to 127.0.0.<#>:9100 and write the bytes.");
         sb.AppendLine("  3. GET /latest?printer=<#>      -> PNG of that printer's newest receipt");
         sb.AppendLine("     GET /latest.txt?printer=<#>  -> its decoded text");
+        sb.AppendLine("     GET /latest.hex?printer=<#>  -> its exact received bytes (hex)");
         sb.AppendLine("  4. Inspect, adjust the bytes, repeat.");
         sb.AppendLine();
         sb.AppendLine("ENDPOINTS:");
@@ -159,6 +162,7 @@ public sealed class WebApiServer : IDisposable
         sb.AppendLine("  GET  /printers               list printers (# / name / address)");
         sb.AppendLine("  GET  /latest?printer=<#>      PNG of the newest receipt for printer #");
         sb.AppendLine("  GET  /latest.txt?printer=<#>  decoded text of the newest receipt");
+        sb.AppendLine("  GET  /latest.hex?printer=<#>  exact received bytes as space-separated hex");
         sb.AppendLine("  GET  /screenshot             PNG of the whole app window");
         sb.AppendLine("  POST /clear                  clear all receipts (or ?printer=<#> for one)");
         sb.AppendLine("  POST /printers/add?name=<name>");
@@ -223,6 +227,23 @@ public sealed class WebApiServer : IDisposable
             return;
         }
         WriteText(ctx, 200, text);
+    }
+
+    private void SendLatestHex(HttpListenerContext ctx)
+    {
+        if (!TryQueryInt(ctx, "printer", out int number))
+        {
+            WriteText(ctx, 400, "Missing or invalid 'printer' query param (e.g. /latest.hex?printer=1).");
+            return;
+        }
+
+        string? hex = _window.Dispatcher.Invoke(() => _host.LatestHex(number));
+        if (hex == null)
+        {
+            WriteText(ctx, 404, $"No receipt for printer {number} yet (or no such printer). GET /printers to list them.");
+            return;
+        }
+        WriteText(ctx, 200, hex);
     }
 
     private async Task SendScreenshotAsync(HttpListenerContext ctx)

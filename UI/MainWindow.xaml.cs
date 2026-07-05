@@ -865,6 +865,8 @@ public partial class MainWindow : Window, IApiHost
 
     string? IApiHost.LatestText(int number) => ViewByNumber(number)?.NewestReceiptText();
 
+    string? IApiHost.LatestHex(int number) => ViewByNumber(number)?.NewestReceiptHex();
+
     string IApiHost.ClearReceipts(int number)
     {
         if (number == 0)

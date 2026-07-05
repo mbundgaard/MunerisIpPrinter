@@ -20,8 +20,13 @@ public static class EscPosTextExtractor
         { 17, 866 },    // PC866 Cyrillic 2
         { 18, 852 },    // PC852 Latin 2
         { 19, 858 },    // PC858 Euro
+        { 24, 1253 },   // WPC1253 Greek (BIXOLON page 24)
+        { 25, 1254 },   // WPC1254 Turkish (BIXOLON page 25)
+        { 28, 1251 },   // WPC1251 Cyrillic (BIXOLON page 28)
         { 33, 862 },    // PC862 Hebrew
         { 34, 864 },    // PC864 Arabic
+        { 36, 855 },    // PC855 Cyrillic (BIXOLON page 36)
+        { 47, 1250 },   // WPC1250 Central European (BIXOLON page 47)
     };
 
     // .NET Framework 4.6.2 ships every codepage in the BCL — no provider registration needed.

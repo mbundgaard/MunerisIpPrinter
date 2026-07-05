@@ -373,4 +373,8 @@ public partial class PrinterView : UserControl
     /// <summary>Decoded text of the newest receipt, or null if there are none. UI-thread only.</summary>
     public string? NewestReceiptText()
         => _jobs.Count == 0 ? null : EscPosTextExtractor.Extract(_jobs[0].Data, _defaultCodePage);
+
+    /// <summary>The newest receipt's exact received bytes as space-separated uppercase hex, or null.</summary>
+    public string? NewestReceiptHex()
+        => _jobs.Count == 0 ? null : BitConverter.ToString(_jobs[0].Data).Replace('-', ' ');
 }
