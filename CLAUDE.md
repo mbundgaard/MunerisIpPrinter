@@ -89,6 +89,39 @@ auto-update swaps. The version is embedded in the assembly only.
   `EscPosTextExtractor` decodes the text honoring `ESC t` codepage switches (net462 has all
   codepages in-box, no `CodePagesEncodingProvider.RegisterProvider` needed). `LogoBitmap` decodes
   `GS * x y data` into a WPF `BitmapSource`.
+- **`ESC t n` code-page table.** The `n` → .NET code-page map lives in **two places that must stay in
+  sync**: `EscPosRenderer.RenderContext.SetCodePage` (on-screen) and `EscPosTextExtractor.EscCodePageMap`
+  (copy-as-text / `/latest.txt`). `ESC t` numbering is only standardized for the low pages; above that
+  Epson and BIXOLON diverge, so each `n` here maps to exactly one page — the emulator is the authority,
+  and we don't care which vendor "owns" a number as long as the table has no overlap. Same map also
+  backs the Settings "Default code page" dropdown (a subset) and the default-when-no-`ESC t` behaviour.
+
+  | `n` | Code page | Defined by |
+  |---:|---|---|
+  | 0 | 437 USA / Standard | Epson + BIXOLON |
+  | 1 | 932 Katakana | Epson + BIXOLON |
+  | 2 | 850 Multilingual | Epson + BIXOLON |
+  | 3 | 860 Portuguese | Epson + BIXOLON |
+  | 4 | 863 Canadian-French | Epson + BIXOLON |
+  | 5 | 865 Nordic | Epson + BIXOLON |
+  | 11 | 851 Greek | Epson only |
+  | 13 | 857 Turkish | Epson only |
+  | 14 | 737 Greek | Epson only |
+  | 15 | 28597 ISO-8859-7 | Epson only |
+  | 16 | 1252 Windows Latin-1 | Epson + BIXOLON |
+  | 17 | 866 Cyrillic (DOS/IBM866) | Epson + BIXOLON |
+  | 18 | 852 Latin-2 | Epson + BIXOLON |
+  | 19 | 858 Multilingual + Euro | Epson + BIXOLON |
+  | 24 | 1253 Greek (Windows) | BIXOLON |
+  | 25 | 1254 Turkish (Windows) | BIXOLON |
+  | 28 | 1251 Cyrillic (Windows) | BIXOLON |
+  | 36 | 855 Cyrillic (DOS) | BIXOLON |
+  | 47 | 1250 Central European (Windows) | BIXOLON |
+
+  **`33` and `34` are deliberately unmapped** — Epson calls them 862 (Hebrew) / 864 (Arabic), BIXOLON
+  calls them 1255 (Hebrew) / Thai 11. A lone `n` can't disambiguate, so we leave the code page unchanged
+  rather than pick a vendor. Add them (and any others) only when a concrete target needs them. Sources:
+  Epson ESC/POS reference; BIXOLON *Thermal POS Printer Command Manual* v1.02 (`ESC t`, p.50–51).
 - **Stacked receipts.** Each `PrinterView` is a single `ScrollViewer` with all the printer's
   receipts stacked newest-on-top. No chip-based selection. Each receipt has hover-revealed copy
   icons (text + image). The image copy puts both `CF_BITMAP` and `PNG` on the clipboard so

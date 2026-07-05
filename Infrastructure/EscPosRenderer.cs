@@ -408,7 +408,8 @@ public static class EscPosRenderer
                 0 => 437, 1 => 932, 2 => 850, 3 => 860, 4 => 863, 5 => 865,
                 11 => 851, 13 => 857, 14 => 737, 15 => 28597, 16 => 1252,
                 17 => 866, 18 => 852, 19 => 858, 24 => 1253, 25 => 1254,
-                28 => 1251, 33 => 862, 34 => 864, 36 => 855, 47 => 1250,
+                28 => 1251, 36 => 855, 47 => 1250,
+                // 33/34 intentionally unmapped — Epson vs BIXOLON disagree (see EscPosTextExtractor note).
                 _ => CodePage,
             };
         }

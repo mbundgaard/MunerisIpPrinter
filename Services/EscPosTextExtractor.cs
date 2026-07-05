@@ -23,8 +23,9 @@ public static class EscPosTextExtractor
         { 24, 1253 },   // WPC1253 Greek (BIXOLON page 24)
         { 25, 1254 },   // WPC1254 Turkish (BIXOLON page 25)
         { 28, 1251 },   // WPC1251 Cyrillic (BIXOLON page 28)
-        { 33, 862 },    // PC862 Hebrew
-        { 34, 864 },    // PC864 Arabic
+        // 33 and 34 are intentionally unmapped: Epson (862 Hebrew / 864 Arabic) and BIXOLON
+        // (1255 Hebrew / Thai 11) assign them different pages, so a lone n is ambiguous. Leave the
+        // code page unchanged rather than assert a vendor. Add them if/when a target requires it.
         { 36, 855 },    // PC855 Cyrillic (BIXOLON page 36)
         { 47, 1250 },   // WPC1250 Central European (BIXOLON page 47)
     };
