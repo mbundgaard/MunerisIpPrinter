@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Net;
@@ -216,6 +216,9 @@ public partial class PrinterView : UserControl
             Margin = new Thickness(0, 0, 0, 4),
             Visibility = Visibility.Hidden,
         };
+        // Segoe MDL2 "Code" glyph (</>), for copying the exact received bytes as hex.
+        var copyBytes = MakeIconButton("", "Copy raw bytes (hex)");
+        copyStrip.Children.Add(copyBytes);
         copyStrip.Children.Add(copyText);
         copyStrip.Children.Add(copyImage);
 
@@ -281,6 +284,8 @@ public partial class PrinterView : UserControl
         // Plain-text copy still uses EscPosTextExtractor — the FlowDocument is for display only.
         var plainText = EscPosTextExtractor.Extract(job.Data, _defaultCodePage);
         copyText.Click += (_, _) => { try { Clipboard.SetText(plainText); } catch { } };
+        // Exact bytes received off the socket for this receipt, as space-separated uppercase hex.
+        copyBytes.Click += (_, _) => { try { Clipboard.SetText(BitConverter.ToString(job.Data).Replace('-', ' ')); } catch { } };
         copyImage.Click += (_, _) => CopyBorderAsImage(paper);
 
         wrapper.MouseEnter += (_, _) => copyStrip.Visibility = Visibility.Visible;
