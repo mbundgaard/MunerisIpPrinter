@@ -75,7 +75,7 @@ public partial class MainWindow : Window, IApiHost
 
         foreach (var cfg in settings.Printers)
         {
-            var view = new PrinterView(cfg, slotStore, settings.HistoryCount);
+            var view = new PrinterView(cfg, slotStore, settings.HistoryCount, settings.DefaultCodePage);
             _views.Add(view);
             _byAddress[cfg.Address] = view;
 

@@ -29,6 +29,23 @@ public sealed class PrinterConfig : INotifyPropertyChanged
     public static string AddressForIndex(int index) => $"127.0.0.{index + 1}";
 }
 
+/// <summary>A selectable code page: the .NET code page number plus a human label for the dropdown.</summary>
+public sealed class CodePageOption
+{
+    public CodePageOption(int code, string label)
+    {
+        Code = code;
+        Label = label;
+    }
+
+    public int Code { get; }
+    public string Label { get; }
+
+    // The Settings ComboBox uses a custom control template, where DisplayMemberPath does not
+    // reliably drive the selection-box text — falling back to ToString keeps the label showing.
+    public override string ToString() => Label;
+}
+
 public sealed class AppSettings
 {
     public List<PrinterConfig> Printers { get; set; } = new();
@@ -49,6 +66,11 @@ public sealed class AppSettings
     public double WindowWidth { get; set; } = DefaultWindowWidth;
     public double WindowHeight { get; set; } = DefaultWindowHeight;
 
+    /// <summary>The .NET code page a printer decodes text with when the stream does not select one
+    /// (no <c>ESC t</c>). Emulates a physical printer's configured default (its VMSM/memory-switch
+    /// code page). An <c>ESC t n</c> in the data still overrides this per receipt. Default 437 (USA).</summary>
+    public int DefaultCodePage { get; set; } = DefaultCodePageValue;
+
     public const int DefaultHistoryCount = 0;
     public const int MaxHistoryCount = 200;
     public const int MaxPrinters = 15;
@@ -59,12 +81,31 @@ public sealed class AppSettings
     public const double DefaultWindowHeight = 765;
     public const double MinWindowWidth = 500;
     public const double MinWindowHeight = 400;
+    public const int DefaultCodePageValue = 437;
+
+    /// <summary>Code pages offered in the Settings dropdown, in display order. Values are .NET code
+    /// page numbers (net462 ships every one of these in-box). The Cyrillic trio (866/1251/855) mirrors
+    /// what a BIXOLON SRP-S300 supports via <c>ESC t</c> 17/28/36.</summary>
+    public static readonly CodePageOption[] CodePages =
+    {
+        new(437,  "PC437 — USA / Standard"),
+        new(850,  "PC850 — Multilingual (Latin-1)"),
+        new(852,  "PC852 — Latin-2 (Central Europe)"),
+        new(858,  "PC858 — Multilingual + Euro"),
+        new(1252, "WPC1252 — Windows Latin-1"),
+        new(866,  "PC866 — Cyrillic (DOS / IBM866)"),
+        new(1251, "WPC1251 — Cyrillic (Windows-1251)"),
+        new(855,  "PC855 — Cyrillic (DOS)"),
+        new(737,  "PC737 — Greek"),
+        new(857,  "PC857 — Turkish"),
+    };
 
     // Settings live alongside logos and receipt history in MunerisIpPrinter.bin.
     // Slot 0 doesn't collide with logo slots (1-255 = address octets) or history
     // slots (1000-1255). Format is versioned so future fields can be appended safely.
     private const int SettingsSlot = 0;
-    private const byte FormatVersion = 1;
+    // v1 -> v2 appended DefaultCodePage. v1 blobs still load (code page defaults to 437).
+    private const byte FormatVersion = 2;
 
     /// <summary>Per-user app data root, e.g. <c>C:\Users\&lt;user&gt;\AppData\Local\MunerisIpPrinter</c>.
     /// All persistent state (settings, logo cache, receipt history, optional logs) lives here so
@@ -119,6 +160,7 @@ public sealed class AppSettings
                 {
                     loaded.AssignAddresses();
                     loaded.HistoryCount = ClampHistoryCount(loaded.HistoryCount);
+                    loaded.DefaultCodePage = ClampCodePage(loaded.DefaultCodePage);
                     loaded.SidebarWidth = ClampSidebarWidth(loaded.SidebarWidth);
                     loaded.WindowWidth = ClampWindowDim(loaded.WindowWidth, DefaultWindowWidth, MinWindowWidth);
                     loaded.WindowHeight = ClampWindowDim(loaded.WindowHeight, DefaultWindowHeight, MinWindowHeight);
@@ -145,6 +187,15 @@ public sealed class AppSettings
     /// <summary>0 = disabled; anything above <see cref="MaxHistoryCount"/> is capped; negatives → 0.</summary>
     public static int ClampHistoryCount(int value)
         => value < 0 ? 0 : (value > MaxHistoryCount ? MaxHistoryCount : value);
+
+    /// <summary>Falls back to 437 if the persisted code page isn't one the dropdown offers, so a
+    /// stale/corrupt value can never leave decoding pointed at an unsupported page.</summary>
+    public static int ClampCodePage(int value)
+    {
+        foreach (var cp in CodePages)
+            if (cp.Code == value) return value;
+        return DefaultCodePageValue;
+    }
 
     /// <summary>Bounds the persisted sidebar width; falls back to the default if NaN/zero.</summary>
     public static double ClampSidebarWidth(double value)
@@ -179,6 +230,7 @@ public sealed class AppSettings
             bw.Write(SidebarWidth);
             bw.Write(WindowWidth);
             bw.Write(WindowHeight);
+            bw.Write(DefaultCodePage); // v2
         }
         return ms.ToArray();
     }
@@ -191,7 +243,7 @@ public sealed class AppSettings
             using var br = new BinaryReader(ms);
 
             byte version = br.ReadByte();
-            if (version != FormatVersion) return null; // unknown layout — ignore
+            if (version != 1 && version != 2) return null; // unknown layout — ignore
 
             int count = br.ReadInt32();
             if (count < 0 || count > MaxPrinters * 4) return null; // sanity check
@@ -205,6 +257,7 @@ public sealed class AppSettings
             s.SidebarWidth = br.ReadDouble();
             s.WindowWidth = br.ReadDouble();
             s.WindowHeight = br.ReadDouble();
+            if (version >= 2) s.DefaultCodePage = br.ReadInt32();
             return s;
         }
         catch

@@ -28,7 +28,7 @@ public static class EscPosRenderer
     /// <summary>Builds a fully-styled FlowDocument. <paramref name="slotStore"/>
     /// and <paramref name="slotKey"/> are used to resolve GS / (print stored logo)
     /// against the persisted per-printer logo slot.</summary>
-    public static FlowDocument Render(byte[] data, SlotStore? slotStore, int slotKey)
+    public static FlowDocument Render(byte[] data, SlotStore? slotStore, int slotKey, int defaultCodePage = 437)
     {
         var doc = new FlowDocument
         {
@@ -41,7 +41,7 @@ public static class EscPosRenderer
         };
         TextOptions.SetTextFormattingMode(doc, TextFormattingMode.Display);
 
-        var ctx = new RenderContext(doc);
+        var ctx = new RenderContext(doc, defaultCodePage);
         int i = 0;
         while (i < data.Length)
         {
@@ -325,7 +325,8 @@ public static class EscPosRenderer
     {
         public FlowDocument Doc;
         public List<byte> TextBuffer = new();
-        public int CodePage = 437;
+        public readonly int DefaultCodePage;
+        public int CodePage;
         public bool Bold, Underline, Reverse;
         public int WidthMul = 1, HeightMul = 1;
         public TextAlignment Align = TextAlignment.Left;
@@ -336,9 +337,11 @@ public static class EscPosRenderer
         public char QrEcc = 'M';
         public byte[]? QrData;
 
-        public RenderContext(FlowDocument doc)
+        public RenderContext(FlowDocument doc, int defaultCodePage)
         {
             Doc = doc;
+            DefaultCodePage = defaultCodePage;
+            CodePage = defaultCodePage;
             CurrentPara = NewParagraph();
             doc.Blocks.Add(CurrentPara);
         }
@@ -415,7 +418,7 @@ public static class EscPosRenderer
             Bold = Underline = Reverse = false;
             WidthMul = HeightMul = 1;
             Align = TextAlignment.Left;
-            CodePage = 437;
+            CodePage = DefaultCodePage; // ESC @ returns to the printer's configured default page
             QrData = null;
             QrEcc = 'M';
             QrModuleSize = 4;

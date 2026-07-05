@@ -26,11 +26,11 @@ public static class EscPosTextExtractor
 
     // .NET Framework 4.6.2 ships every codepage in the BCL — no provider registration needed.
 
-    public static string Extract(byte[] data)
+    public static string Extract(byte[] data, int defaultCodePage = 437)
     {
         var sb = new StringBuilder(data.Length);
         var textBuf = new List<byte>();
-        var currentCp = 437;
+        var currentCp = defaultCodePage;
 
         void FlushText()
         {
@@ -71,7 +71,7 @@ public static class EscPosTextExtractor
             switch (b)
             {
                 case 0x1B: // ESC
-                    i = SkipEscCommand(data, i, ref currentCp);
+                    i = SkipEscCommand(data, i, ref currentCp, defaultCodePage);
                     break;
                 case 0x1D: // GS
                     i = SkipGsCommand(data, i);
@@ -123,10 +123,13 @@ public static class EscPosTextExtractor
     }
 
     // ESC commands: parameter counts based on Epson ESC/POS spec
-    private static int SkipEscCommand(byte[] data, int pos, ref int currentCp)
+    private static int SkipEscCommand(byte[] data, int pos, ref int currentCp, int defaultCp)
     {
         if (pos + 1 >= data.Length) return data.Length;
         var cmd = data[pos + 1];
+
+        // ESC @ initialise returns the code page to the printer's configured default.
+        if (cmd == 0x40) currentCp = defaultCp;
         int paramLen = cmd switch
         {
             0x40 => 0,                              // ESC @ initialize

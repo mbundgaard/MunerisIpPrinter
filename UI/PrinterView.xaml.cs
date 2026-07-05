@@ -40,6 +40,7 @@ public partial class PrinterView : UserControl
     private readonly SlotStore _slotStore;
     private readonly int _slotKey;
     private readonly int _historyCount;
+    private readonly int _defaultCodePage;
     private readonly ObservableCollection<PrintJob> _jobs = new();
     private int _sequence;
     private double _paperWidth;
@@ -53,7 +54,7 @@ public partial class PrinterView : UserControl
 
     public PrinterConfig Config { get; }
 
-    public PrinterView(PrinterConfig config, SlotStore slotStore, int historyCount)
+    public PrinterView(PrinterConfig config, SlotStore slotStore, int historyCount, int defaultCodePage = 437)
     {
         InitializeComponent();
         Config = config;
@@ -61,6 +62,7 @@ public partial class PrinterView : UserControl
         var bytes = IPAddress.Parse(config.Address).GetAddressBytes();
         _slotKey = bytes[bytes.Length - 1];
         _historyCount = historyCount;
+        _defaultCodePage = defaultCodePage;
 
         ComputePaperDimensions();
 
@@ -146,7 +148,7 @@ public partial class PrinterView : UserControl
     public void CopyNewestText()
     {
         if (_jobs.Count == 0) return;
-        try { Clipboard.SetText(EscPosTextExtractor.Extract(_jobs[0].Data)); }
+        try { Clipboard.SetText(EscPosTextExtractor.Extract(_jobs[0].Data, _defaultCodePage)); }
         catch { /* clipboard transient errors are fine to swallow */ }
     }
 
@@ -229,7 +231,7 @@ public partial class PrinterView : UserControl
         // reverse, inline raster bitmaps, stored logos via GS /, and QR codes via GS ( k). The
         // separate LogoView from the previous design is gone — inline images live in the
         // FlowDocument at the correct paragraph position now.
-        var doc = EscPosRenderer.Render(job.Data, _slotStore, _slotKey);
+        var doc = EscPosRenderer.Render(job.Data, _slotStore, _slotKey, _defaultCodePage);
 
         var richText = new RichTextBox
         {
@@ -277,7 +279,7 @@ public partial class PrinterView : UserControl
         wrapper.Children.Add(paper);
 
         // Plain-text copy still uses EscPosTextExtractor — the FlowDocument is for display only.
-        var plainText = EscPosTextExtractor.Extract(job.Data);
+        var plainText = EscPosTextExtractor.Extract(job.Data, _defaultCodePage);
         copyText.Click += (_, _) => { try { Clipboard.SetText(plainText); } catch { } };
         copyImage.Click += (_, _) => CopyBorderAsImage(paper);
 
@@ -365,5 +367,5 @@ public partial class PrinterView : UserControl
 
     /// <summary>Decoded text of the newest receipt, or null if there are none. UI-thread only.</summary>
     public string? NewestReceiptText()
-        => _jobs.Count == 0 ? null : EscPosTextExtractor.Extract(_jobs[0].Data);
+        => _jobs.Count == 0 ? null : EscPosTextExtractor.Extract(_jobs[0].Data, _defaultCodePage);
 }
