@@ -10,7 +10,7 @@ using MunerisIpPrinter.Services;
 
 namespace MunerisIpPrinter.UI;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IApiHost
 {
     private const int Port = 9100;
     private const int ApiPort = 9101;
@@ -110,8 +110,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // /screenshot captures the whole window — meaningful with sidebar + detail.
-            _api = new WebApiServer(this, ApiPort);
+            // Local HTTP API (screenshot, per-printer latest receipt, settings). See IApiHost impl below.
+            _api = new WebApiServer(this, ApiPort, this);
             try { _api.Start(); } catch { /* port unavailable — non-fatal */ }
 
             // background poll for a newer GitHub release; silent if offline or rate-limited.
@@ -689,6 +689,20 @@ public partial class MainWindow : Window
         dlg.ShowDialog();
     }
 
+    /// <summary>Copies a short seed prompt that points an AI agent (Claude Code, etc.) at the local
+    /// API guide, so it can drive receipt-design iteration end-to-end without any other context.</summary>
+    private void CopyAiPrompt_Click(object sender, RoutedEventArgs e)
+    {
+        var prompt =
+            "A local ESC/POS receipt-printer emulator (\"MunerisIpPrinter\") is running on this " +
+            $"machine with an HTTP API at http://127.0.0.1:{ApiPort}/. Start by fetching " +
+            $"http://127.0.0.1:{ApiPort}/ — it returns a full guide covering every endpoint, the " +
+            "available printer instances, and how to send ESC/POS receipt data and fetch back the " +
+            "rendered receipt image and text. Follow that guide to help me iterate on a receipt print design.";
+        try { Clipboard.SetText(prompt); }
+        catch { /* clipboard occasionally unavailable; user can retry */ }
+    }
+
     /// <summary>Pops up the styled sidebar overflow menu (Clear all receipts / Settings) above the button.</summary>
     private void MenuButton_Click(object sender, RoutedEventArgs e)
     {
@@ -729,6 +743,14 @@ public partial class MainWindow : Window
             };
             share.Click += CopyShareLink_Click;
 
+            var aiPrompt = new MenuItem
+            {
+                Header = "Copy AI prompt",
+                Icon = MenuIcon(""),
+                Style = itemStyle,
+            };
+            aiPrompt.Click += CopyAiPrompt_Click;
+
             var about = new MenuItem
             {
                 Header = "About",
@@ -742,6 +764,7 @@ public partial class MainWindow : Window
             menu.Items.Add(settings);
             menu.Items.Add(check);
             menu.Items.Add(share);
+            menu.Items.Add(aiPrompt);
             menu.Items.Add(about);
             btn.ContextMenu = menu;
         }
@@ -775,6 +798,13 @@ public partial class MainWindow : Window
                 confirm: "Clear",
                 cancel: "Cancel")) return;
 
+        ClearAllReceiptsCore();
+    }
+
+    /// <summary>Wipes every printer's receipts and unviewed badges, then drops the selection so the
+    /// sidebar reads "fresh". Shared by the menu's Clear (after its confirm) and the API's /clear.</summary>
+    private void ClearAllReceiptsCore()
+    {
         foreach (var v in _views)
         {
             v.ClearAllJobs();
@@ -815,10 +845,112 @@ public partial class MainWindow : Window
                 confirm: "Restart now",
                 cancel: "Later")) return;
 
+        RestartToApply();
+    }
+
+    // ---- IApiHost: local HTTP API surface (WebApiServer) --------------------
+    // All members run on the UI thread (the server marshals via Dispatcher). The mutators
+    // read-modify-write the persisted settings and rely on the server to call RestartToApply
+    // afterwards, since printer changes only take effect on relaunch.
+
+    IReadOnlyList<ApiPrinter> IApiHost.ListPrinters()
+    {
+        var list = new List<ApiPrinter>(_views.Count);
+        foreach (var v in _views)
+            list.Add(new ApiPrinter(OctetOf(v.Config.Address), v.Config.Name, v.Config.Address));
+        return list;
+    }
+
+    byte[]? IApiHost.RenderLatestPng(int number) => ViewByNumber(number)?.RenderNewestReceiptPng();
+
+    string? IApiHost.LatestText(int number) => ViewByNumber(number)?.NewestReceiptText();
+
+    string IApiHost.ClearReceipts(int number)
+    {
+        if (number == 0)
+        {
+            int had = _views.Count(v => v.HasJobs);
+            ClearAllReceiptsCore();
+            return had == 0 ? "No receipts to clear." : "Cleared receipts from all printers.";
+        }
+
+        var v = ViewByNumber(number);
+        if (v == null)
+            throw new ArgumentException($"No printer #{number}.");
+        bool hadJobs = v.HasJobs;
+        v.ClearAllJobs();
+        if (_sidebarItems.TryGetValue(v, out var item))
+        {
+            item.Unviewed = 0;
+            RefreshBadge(item);
+        }
+        return hadJobs ? $"Cleared receipts for printer #{number}." : $"Printer #{number} had no receipts.";
+    }
+
+    string IApiHost.AddPrinter(string name)
+    {
+        var s = AppSettings.Load();
+        if (s.Printers.Count >= AppSettings.MaxPrinters)
+            throw new InvalidOperationException($"Already at the maximum of {AppSettings.MaxPrinters} printers.");
+        name = string.IsNullOrWhiteSpace(name) ? "Printer" : name.Trim();
+        s.Printers.Add(new PrinterConfig { Name = name });
+        s.AssignAddresses();
+        s.Save();
+        return $"Added printer #{s.Printers.Count} '{name}' at {PrinterConfig.AddressForIndex(s.Printers.Count - 1)}:9100.";
+    }
+
+    string IApiHost.RenamePrinter(int number, string name)
+    {
+        var s = AppSettings.Load();
+        int idx = number - 1;
+        if (idx < 0 || idx >= s.Printers.Count)
+            throw new ArgumentException($"No printer #{number}. There are {s.Printers.Count}.");
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A non-empty 'name' is required.");
+        var old = s.Printers[idx].Name;
+        s.Printers[idx].Name = name.Trim();
+        s.Save();
+        return $"Renamed printer #{number} from '{old}' to '{name.Trim()}'.";
+    }
+
+    string IApiHost.RemovePrinter(int number)
+    {
+        var s = AppSettings.Load();
+        int idx = number - 1;
+        if (idx < 0 || idx >= s.Printers.Count)
+            throw new ArgumentException($"No printer #{number}. There are {s.Printers.Count}.");
+        if (s.Printers.Count <= 1)
+            throw new InvalidOperationException("Can't remove the last printer — at least one is required.");
+        var removed = s.Printers[idx].Name;
+        s.Printers.RemoveAt(idx);
+        s.AssignAddresses();
+        s.Save();
+        return $"Removed printer #{number} ('{removed}'). Higher-numbered printers shift down by one.";
+    }
+
+    /// <summary>Relaunches the app so freshly-saved settings take effect (no live reload). Shared by
+    /// the Settings dialog and the API's settings mutations.</summary>
+    public void RestartToApply()
+    {
         // Environment.ProcessPath is .NET 6+; on net462 we use the entry assembly path.
         var exe = Assembly.GetEntryAssembly()?.Location;
         if (exe != null)
             Relauncher.RelaunchAfterExit(exe);
         Application.Current.Shutdown();
+    }
+
+    /// <summary>Last octet of a 127.0.0.X loopback address — the printer's API number and slot key.</summary>
+    private static int OctetOf(string address)
+    {
+        var b = System.Net.IPAddress.Parse(address).GetAddressBytes();
+        return b[b.Length - 1];
+    }
+
+    /// <summary>The PrinterView whose address ends in <paramref name="number"/>, or null.</summary>
+    private PrinterView? ViewByNumber(int number)
+    {
+        foreach (var v in _views)
+            if (OctetOf(v.Config.Address) == number) return v;
+        return null;
     }
 }

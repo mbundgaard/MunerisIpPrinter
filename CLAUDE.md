@@ -43,7 +43,18 @@ auto-update swaps. The version is embedded in the assembly only.
   which makes the pending accept throw. Same pattern for `ReadAsync`/`WriteAsync`: use the
   `(buffer, offset, count, ct)` overload, not the `Span` or `Memory<byte>` variants (net462 lacks
   those).
-- **WebApiServer** (port 9101, `/screenshot`) is started unconditionally on app load.
+- **WebApiServer** (port 9101) is started unconditionally on app load — a loopback-only local
+  HTTP API meant for an AI agent to drive receipt-design iteration. Routes: `GET /` (a
+  self-describing plaintext guide listing the live printers + the send/fetch loop), `GET /printers`,
+  `GET /latest?printer=N` (PNG of that instance's newest receipt paper only — reuses
+  `PrinterView.RenderNewestReceiptPng` → `RenderBorder`), `GET /latest.txt?printer=N`
+  (`EscPosTextExtractor`), `GET /screenshot` (whole window), `POST /clear` (clear all receipts, or
+  `?printer=N` for one — live, no restart), and `POST /printers/add|rename|remove`
+  which save `AppSettings` then `RestartToApply()` (no live reload — same restart path as the
+  Settings dialog). `MainWindow` implements `IApiHost`; the server marshals every host call onto the
+  UI thread via `Dispatcher`. `printer=N` is the loopback last octet (1-based). No JSON — reads are
+  plaintext, writes take query params. The hamburger menu's **Copy AI prompt** item copies a short
+  seed prompt that points an agent at `http://127.0.0.1:9101/` to self-discover the rest.
 - **Persistence.** Everything lives in `%LOCALAPPDATA%\MunerisIpPrinter\MunerisIpPrinter.bin`,
   a multi-slot binary blob keyed by int. Slot layout:
   - **slot 0** — `AppSettings` (binary, versioned, written via `BinaryReader`/`BinaryWriter`)

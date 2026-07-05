@@ -305,16 +305,37 @@ public partial class PrinterView : UserControl
     /// CF_BITMAP and PNG so any paste target (Paint, Word, Slack, browsers) picks a format it knows.</summary>
     private async void CopyBorderAsImage(Border paper)
     {
+        var png = RenderBorder(paper, out var rtb);
+        if (png == null || rtb == null) return;
+
+        var data = new DataObject();
+        data.SetImage(rtb);
+        data.SetData("PNG", new MemoryStream(png));
+
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try { Clipboard.SetDataObject(data, copy: true); return; }
+            catch { await Task.Delay(60); }
+        }
+    }
+
+    /// <summary>Renders a receipt paper <see cref="Border"/> to PNG bytes (2×), dropping the
+    /// drop-shadow first, and hands back the <paramref name="rtb"/> for CF_BITMAP clipboard use.
+    /// UI-thread only. Returns null (and null rtb) when the border has no size yet.
+    /// (net462 has no in-box System.ValueTuple, hence the out-param rather than a tuple return.)</summary>
+    private static byte[]? RenderBorder(Border paper, out RenderTargetBitmap? rtb)
+    {
+        rtb = null;
         int w = (int)Math.Ceiling(paper.ActualWidth);
         int h = (int)Math.Ceiling(paper.ActualHeight);
-        if (w <= 0 || h <= 0) return;
+        if (w <= 0 || h <= 0) return null;
 
         const double scale = 2.0;
         var savedEffect = paper.Effect;
-        paper.Effect = null; // drop the drop-shadow from the copied image
+        paper.Effect = null; // drop the drop-shadow from the rendered image
         paper.UpdateLayout();
 
-        var rtb = new RenderTargetBitmap(
+        rtb = new RenderTargetBitmap(
             (int)(w * scale), (int)(h * scale),
             96 * scale, 96 * scale, PixelFormats.Pbgra32);
         var dv = new DrawingVisual();
@@ -329,16 +350,20 @@ public partial class PrinterView : UserControl
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(rtb));
         encoder.Save(pngStream);
-        pngStream.Position = 0;
-
-        var data = new DataObject();
-        data.SetImage(rtb);
-        data.SetData("PNG", pngStream);
-
-        for (int attempt = 0; attempt < 3; attempt++)
-        {
-            try { Clipboard.SetDataObject(data, copy: true); return; }
-            catch { await Task.Delay(60); }
-        }
+        return pngStream.ToArray();
     }
+
+    /// <summary>PNG of the newest receipt's paper only (no window chrome), or null if this printer
+    /// has no receipts / isn't laid out yet. For the local HTTP API. UI-thread only.</summary>
+    public byte[]? RenderNewestReceiptPng()
+    {
+        if (ReceiptStack.Children.Count == 0) return null;
+        if (ReceiptStack.Children[0] is not StackPanel wrapper) return null;
+        var paper = FindPaper(wrapper);
+        return paper == null ? null : RenderBorder(paper, out _);
+    }
+
+    /// <summary>Decoded text of the newest receipt, or null if there are none. UI-thread only.</summary>
+    public string? NewestReceiptText()
+        => _jobs.Count == 0 ? null : EscPosTextExtractor.Extract(_jobs[0].Data);
 }

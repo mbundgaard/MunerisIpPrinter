@@ -55,8 +55,8 @@ public sealed class AppSettings
     public const double DefaultSidebarWidth = 200;
     public const double MinSidebarWidth = 140;
     public const double MaxSidebarWidth = 480;
-    public const double DefaultWindowWidth = 720;
-    public const double DefaultWindowHeight = 720;
+    public const double DefaultWindowWidth = 600;
+    public const double DefaultWindowHeight = 765;
     public const double MinWindowWidth = 500;
     public const double MinWindowHeight = 400;
 
