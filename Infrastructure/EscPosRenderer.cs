@@ -354,12 +354,37 @@ public static class EscPosRenderer
             catch { text = Encoding.GetEncoding(28591).GetString(TextBuffer.ToArray()); }
             TextBuffer.Clear();
 
+            // GS ! / ESC ! magnify width and height INDEPENDENTLY (e.g. GS ! 0x01 = double height at
+            // single width). A Run's FontSize scales both axes together, so it can only express a
+            // square magnification. For a non-square one, host the text in a TextBlock and scale it
+            // with a LayoutTransform — LayoutTransform (not RenderTransform) so the advance width
+            // grows by the width factor only, and the line still occupies the right column count.
+            if (WidthMul != HeightMul)
+            {
+                var tb = new TextBlock
+                {
+                    Text = text,
+                    FontFamily = Doc.FontFamily,
+                    FontSize = BaseFontSize,
+                    FontWeight = Bold ? FontWeights.Bold : FontWeights.Normal,
+                    Foreground = Reverse ? Brushes.White : Brushes.Black,
+                    Background = Reverse ? Brushes.Black : Brushes.Transparent,
+                    LayoutTransform = new ScaleTransform(WidthMul, HeightMul),
+                };
+                if (Underline) tb.TextDecorations = TextDecorations.Underline;
+                TextOptions.SetTextFormattingMode(tb, TextFormattingMode.Display);
+                CurrentPara.Inlines.Add(new InlineUIContainer(tb)
+                {
+                    BaselineAlignment = BaselineAlignment.Bottom,
+                });
+                return;
+            }
+
             var run = new Run(text);
             if (Bold) run.FontWeight = FontWeights.Bold;
             if (Underline) run.TextDecorations = TextDecorations.Underline;
             if (Reverse) { run.Background = Brushes.Black; run.Foreground = Brushes.White; }
-            int scale = System.Math.Max(HeightMul, WidthMul);
-            if (scale > 1) run.FontSize = BaseFontSize * scale;
+            if (HeightMul > 1) run.FontSize = BaseFontSize * HeightMul; // square: W == H
             CurrentPara.Inlines.Add(run);
         }
 
